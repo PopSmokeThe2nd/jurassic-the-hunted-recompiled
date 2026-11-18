@@ -1,5 +1,7 @@
 # Jurassic: The Hunted — Recompiled
 
+<a href="https://recomplauncher.com"><picture><source media="(prefers-color-scheme: dark)" srcset="https://recomplauncher.com/assets/press/launcher/badge-light.svg"><img alt="Get it on RecompLauncher" src="https://recomplauncher.com/assets/press/launcher/badge-dark.svg" height="48"></picture></a>
+
 A native Windows build of the Xbox 360 version of *Jurassic: The Hunted* (USA, title `41560870`),
 made by statically recompiling `default.xex` to C++ with the [ReXGlue SDK](https://github.com/rexglue/rexglue-sdk).
 No game data is included: you supply your own disc image.
@@ -17,6 +19,22 @@ works without them (see [Launcher](#launcher) and [Button and key images](#butto
 
 *Jurassic: The Hunted* and its art belong to their respective owners; this project isn't
 affiliated with or endorsed by them. You need your own legally obtained copy of the game.
+
+## How to play
+
+You need your own copy of *Jurassic: The Hunted* for **Xbox 360, USA release** (serial AV-2160):
+its disc image (`.iso`, Redump CRC-32 `349a97f2`) or the extracted disc folder with `default.xex`.
+
+- **From the release:** unzip the latest release, run `JurassicTheHunted.exe`, pick your disc image
+  in the GAME ISO tab and press Install (about 3 GB is copied into a `game` folder next to the
+  program), then PLAY.
+- **With [RecompLauncher](https://recomplauncher.com):** install it from there, drop your disc image
+  (or the extracted folder) on its setup screen, and press Play. Its settings page has the same
+  graphics, controls and cheat options (see [RecompLauncher](#recomplauncher)).
+
+Windows 10 or 11 (64-bit) and a DirectX 12 graphics card. Saves are kept in
+`%LOCALAPPDATA%\JurassicTheHuntedRecomp`, settings in `jurassichunted.toml` and logs in `logs\`
+next to the program.
 
 ## Layout
 
@@ -130,6 +148,32 @@ Testing options: `--tab graphics|controls|cheats|iso`, `--game-dir <dir>` (use/i
 elsewhere), `--install-iso <file.iso>` (start installing immediately).
 `tools/post_key.ps1 -ProcessName JurassicTheHunted -VirtualKey 0x28` posts keys to it (posted mouse
 clicks don't work while it has focus: ImGui reads the real cursor position).
+
+### RecompLauncher
+
+[RecompLauncher](https://recomplauncher.com) installs recomps from their GitHub releases. Every
+package carries `recomplauncher.json` next to the program (copied by `tools/package.ps1`), which
+gives it:
+
+- **Easy Setup:** the player drops their disc image (`.iso`) or extracted folder; the launcher
+  checks it's this game (`default.xex` on the disc or in the folder) and shows "Matches the
+  verified USA disc" for the Redump dump (size 7838695424, CRC-32 `349a97f2`).
+- **Setup step:** it then runs `JurassicTheHunted.exe --prepare --game <path>`, which installs the
+  game data into `game\` next to the program with the GAME ISO tab's own checks and installer
+  (`launcher/prepare.cpp`; an extracted folder is checked the same way and copied). No window
+  opens; it prints `progress <0..1> <text>` lines and exits with 0 (installed), 2 (bad
+  arguments), 3 (not this game or not the USA release) or 4 (installing failed, e.g. disk full).
+  An existing `game\default.xex` counts as set up, so a player who installed with this launcher
+  isn't asked again.
+- **Play** starts `jurassichunted.exe`, which finds `game\` by itself as always.
+- **Settings:** resolution, upscaling, sharpness, anti-aliasing, frame rate, V-Sync, FOV, window
+  mode, mouse sensitivity, the weapon wheel, button icons and the cheats, written to
+  `jurassichunted.toml` with the same keys this launcher and the F2 panel use. Also: where saves
+  and logs are (for its backups and crash reports), and buttons to open them or clear the shader
+  cache.
+
+Check the file with RecompLauncher's Developer tools (Settings → Developers → "Add a build" on the
+package folder).
 
 ### Button and key images
 

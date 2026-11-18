@@ -1,0 +1,215 @@
+{
+  "$schema": "https://recomplauncher.com/schema/recomplauncher.json",
+  "format": 1,
+  "name": "Jurassic: The Hunted Recompiled",
+  "repo": "PopSmokeThe2nd/jurassic-the-hunted-recompiled",
+  "game": {
+    "kind": "iso_or_folder",
+    "label": "Your copy of Jurassic: The Hunted for Xbox 360, USA release (serial AV-2160): its disc image (.iso), or the extracted disc's folder with default.xex.",
+    "check": { "xdvdfs": "default.xex", "file": "default.xex" },
+    "dumps": [
+      { "name": "USA", "size": 7838695424, "crc32": "349a97f2" }
+    ]
+  },
+  "start": {
+    "program": ["jurassichunted.exe"]
+  },
+  "prepare": {
+    "program": ["JurassicTheHunted.exe"],
+    "args": ["--prepare", "--game", "{game}"],
+    "label": "Installing the game data from your copy (about 3 GB)",
+    "timeout": 1800,
+    "done": ["{install}/game/default.xex"]
+  },
+  "config": [
+    {
+      "id": "main",
+      "format": "toml",
+      "file": [{ "path": "{install}/jurassichunted.toml" }]
+    }
+  ],
+  "saves": [
+    "{local}/JurassicTheHuntedRecomp/B13EBABEBABEBABE",
+    "{local}/JurassicTheHuntedRecomp/41560870",
+    "{local}/JurassicTheHuntedRecomp/achievements",
+    "{install}/jurassichunted.toml"
+  ],
+  "folders": {
+    "saves": [{ "path": "{local}/JurassicTheHuntedRecomp" }],
+    "logs": [{ "path": "{install}/logs" }]
+  },
+  "exit_codes": {
+    "1": "The game stopped before it started, most often because it couldn't find its game data. Set it up again on the game's page."
+  },
+  "settings": [
+    {
+      "id": "window", "label": "Window", "group": "Display",
+      "help": "Fullscreen fills your screen. Windowed opens the game in a window.",
+      "choices": [
+        { "label": "Fullscreen", "set": { "fullscreen": "true" } },
+        { "label": "Windowed", "set": { "fullscreen": "false" } }
+      ],
+      "defaults": { "fullscreen": "true" }
+    },
+    {
+      "id": "resolution", "label": "Resolution", "group": "Display",
+      "help": "What the 3D scene is drawn at. Auto matches your display. 720p is the console's own; 4K needs a fast graphics card.",
+      "choices": [
+        { "label": "Auto", "set": { "internal_resolution": "\"auto\"" } },
+        { "label": "720p", "set": { "internal_resolution": "\"720p\"" } },
+        { "label": "1440p", "set": { "internal_resolution": "\"1440p\"" } },
+        { "label": "4K", "set": { "internal_resolution": "\"4k\"" } }
+      ],
+      "defaults": { "internal_resolution": "\"auto\"" }
+    },
+    {
+      "id": "upscaler", "label": "Upscaling", "group": "Display",
+      "help": "How the picture is fitted to your screen. FSR sharpens it, CAS only sharpens.",
+      "choices": [
+        { "label": "AMD FSR", "set": { "upscaler": "\"fsr\"" } },
+        { "label": "AMD CAS", "set": { "upscaler": "\"cas\"" } },
+        { "label": "Off", "set": { "upscaler": "\"bilinear\"" } }
+      ],
+      "defaults": { "upscaler": "\"fsr\"" }
+    },
+    {
+      "id": "sharpness", "label": "Sharpness", "group": "Display",
+      "help": "How much FSR or CAS sharpens the picture.",
+      "slider": { "key": "upscaler_sharpness", "min": 0, "max": 1, "step": 0.05, "format": "%.2f" },
+      "defaults": { "upscaler_sharpness": "0.90" }
+    },
+    {
+      "id": "antialiasing", "label": "Anti-aliasing", "group": "Display",
+      "help": "FXAA smooths jagged edges at almost no cost. A higher resolution also smooths them.",
+      "choices": [
+        { "label": "Off", "set": { "antialiasing": "\"off\"" } },
+        { "label": "FXAA", "set": { "antialiasing": "\"fxaa\"" } },
+        { "label": "FXAA high", "set": { "antialiasing": "\"fxaa_high\"" } }
+      ],
+      "defaults": { "antialiasing": "\"off\"" }
+    },
+    {
+      "id": "frame_rate", "label": "Frame rate", "group": "Display",
+      "help": "30 is the game's own. At higher rates the game still runs at the right speed.",
+      "choices": [
+        { "label": "30 (original)", "set": { "framerate": "30" } },
+        { "label": "60", "set": { "framerate": "60" } },
+        { "label": "120", "set": { "framerate": "120" } },
+        { "label": "144", "set": { "framerate": "144" } },
+        { "label": "165", "set": { "framerate": "165" } },
+        { "label": "185", "set": { "framerate": "185" } },
+        { "label": "240", "set": { "framerate": "240" } }
+      ],
+      "defaults": { "framerate": "30" }
+    },
+    {
+      "id": "vsync", "label": "V-Sync", "group": "Display",
+      "help": "On waits for your screen's refresh: no tearing, a little more input delay.",
+      "choices": [
+        { "label": "Off", "set": { "vertical_sync": "false" } },
+        { "label": "On", "set": { "vertical_sync": "true" } }
+      ],
+      "defaults": { "vertical_sync": "false" }
+    },
+    {
+      "id": "fov", "label": "Field of view", "group": "Display",
+      "help": "Horizontal degrees at 16:9. The game's own is 86. Cutscenes keep their framing.",
+      "slider": { "key": "fov", "min": 60, "max": 120, "step": 1, "format": "%d" },
+      "defaults": { "fov": "86" }
+    },
+    {
+      "id": "weapon_size", "label": "Weapon size", "group": "Display", "advanced": true,
+      "help": "Keep the gun in your hands at its original size when you change the field of view.",
+      "choices": [
+        { "label": "Keep it fixed", "set": { "weapon_fov_fixed": "true" } },
+        { "label": "Follow the field of view", "set": { "weapon_fov_fixed": "false" } }
+      ],
+      "defaults": { "weapon_fov_fixed": "true" }
+    },
+    {
+      "id": "exposure", "label": "Brightening limit", "group": "Display", "advanced": true,
+      "help": "How far the game's auto-exposure may brighten dark scenes. 2x fixes the white glare in The Lost Castaways.",
+      "choices": [
+        { "label": "1.5x", "set": { "hdr_max_brightening": "1.50" } },
+        { "label": "2x", "set": { "hdr_max_brightening": "2.00" } },
+        { "label": "3x", "set": { "hdr_max_brightening": "3.00" } },
+        { "label": "Each level's own", "set": { "hdr_max_brightening": "0.00" } }
+      ],
+      "defaults": { "hdr_max_brightening": "2.00" }
+    },
+    {
+      "id": "mouse_sensitivity", "label": "Mouse sensitivity", "group": "Controls",
+      "help": "How fast the mouse turns the camera. 1 is 0.05 degrees per mouse count.",
+      "slider": { "key": "mouse_sensitivity", "min": 0.1, "max": 5, "step": 0.05, "format": "%.3f" },
+      "defaults": { "mouse_sensitivity": "1.000" }
+    },
+    {
+      "id": "weapon_wheel", "label": "Weapon wheel", "group": "Controls",
+      "help": "Hold Q and point with the mouse to pick a weapon; tap Q for the next one. Keys 1 to 9 pick one directly.",
+      "choices": [
+        { "label": "On", "set": { "weapon_wheel": "true" } },
+        { "label": "Off", "set": { "weapon_wheel": "false" } }
+      ],
+      "defaults": { "weapon_wheel": "true" }
+    },
+    {
+      "id": "prompts", "label": "Button icons", "group": "Controls",
+      "help": "The buttons shown in the game's own prompts. Applies when the game starts.",
+      "choices": [
+        { "label": "Xbox", "set": { "button_prompts": "\"xbox\"" } },
+        { "label": "Keyboard keys", "set": { "button_prompts": "\"keyboard\"" } }
+      ],
+      "defaults": { "button_prompts": "\"xbox\"" }
+    },
+    {
+      "id": "god_mode", "label": "God mode", "group": "Cheats",
+      "help": "You can't be hurt.",
+      "choices": [
+        { "label": "Off", "set": { "cheat_god_mode": "false" } },
+        { "label": "On", "set": { "cheat_god_mode": "true" } }
+      ],
+      "defaults": { "cheat_god_mode": "false" }
+    },
+    {
+      "id": "infinite_ammo", "label": "Infinite ammo", "group": "Cheats",
+      "help": "The magazine never runs out; no reloading.",
+      "choices": [
+        { "label": "Off", "set": { "cheat_infinite_ammo": "false" } },
+        { "label": "On", "set": { "cheat_infinite_ammo": "true" } }
+      ],
+      "defaults": { "cheat_infinite_ammo": "false" }
+    },
+    {
+      "id": "infinite_adrenaline", "label": "Infinite adrenaline", "group": "Cheats",
+      "help": "The slow-motion meter stays full.",
+      "choices": [
+        { "label": "Off", "set": { "cheat_infinite_adrenaline": "false" } },
+        { "label": "On", "set": { "cheat_infinite_adrenaline": "true" } }
+      ],
+      "defaults": { "cheat_infinite_adrenaline": "false" }
+    },
+    {
+      "id": "infinite_grenades", "label": "Infinite grenades", "group": "Cheats",
+      "help": "Grenades are topped back up to 5 after each throw.",
+      "choices": [
+        { "label": "Off", "set": { "cheat_infinite_grenades": "false" } },
+        { "label": "On", "set": { "cheat_infinite_grenades": "true" } }
+      ],
+      "defaults": { "cheat_infinite_grenades": "false" }
+    },
+    {
+      "id": "one_hit_kill", "label": "One hit kill", "group": "Cheats",
+      "help": "Anything you hurt dies from one hit.",
+      "choices": [
+        { "label": "Off", "set": { "cheat_one_hit_kill": "false" } },
+        { "label": "On", "set": { "cheat_one_hit_kill": "true" } }
+      ],
+      "defaults": { "cheat_one_hit_kill": "false" }
+    }
+  ],
+  "actions": [
+    { "id": "saves", "label": "Saves", "help": "Your checkpoints and game profile.", "open": "saves" },
+    { "id": "logs", "label": "Logs", "help": "The game's logs; the newest file is the latest run.", "open": "logs" },
+    { "id": "cache", "label": "Shader cache", "help": "Shaders the game has built. Clearing only helps if graphics look wrong after an update.", "clear": "saves/cache" }
+  ]
+}

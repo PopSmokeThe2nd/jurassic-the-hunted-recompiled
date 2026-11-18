@@ -10,7 +10,8 @@
   -Release builds a package to share (e.g. on GitHub Releases): built with JTH_NO_GAME_ART=ON,
   so the game's launcher art and the controller button images are left out even if they're on
   this machine, assembled in a fresh out\release\JurassicTheHunted-v<Version> folder (dist\ is
-  not touched) and zipped, with the zip's SHA-256 printed for the release notes. Every package
+  not touched) and zipped as JurassicTheHunted-v<Version>-Windows-x64.zip, with the zip's SHA-256
+  printed for the release notes. Every package carries recomplauncher.json next to the program. Every package
   gets THIRD_PARTY_NOTICES.txt, built from the license files of the libraries in the binaries.
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File tools\package.ps1
@@ -72,6 +73,9 @@ $crtFiles = "msvcp140.dll", "msvcp140_atomic_wait.dll", "vcruntime140.dll", "vcr
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 foreach ($f in $files) { Copy-Item (Join-Path $bin $f) $OutDir -Force }
 foreach ($f in $crtFiles) { Copy-Item (Join-Path $crt.FullName $f) $OutDir -Force }
+# RecompLauncher (recomplauncher.com) reads this next to the program: Easy Setup from the player's
+# disc image, the settings on the game's page, and the setup step (JurassicTheHunted.exe --prepare).
+Copy-Item (Join-Path $root "recomplauncher.json") $OutDir -Force
 
 @"
 JURASSIC: THE HUNTED - RECOMPILED
@@ -125,6 +129,7 @@ FILES
   jurassichunted.toml   settings (created when you change something)
   game\                 game data installed from your disc image
   logs\                 game logs (newest file is the latest run)
+  recomplauncher.json   lets RecompLauncher (recomplauncher.com) set the game up and show its settings
   Saves and shader cache: %LOCALAPPDATA%\JurassicTheHuntedRecomp
 
 REQUIREMENTS
@@ -210,9 +215,21 @@ Get-ChildItem $OutDir -File | Select-Object Name, @{n = 'MB'; e = { [math]::Roun
 if (Test-Path (Join-Path $OutDir "game\default.xex")) { "Game data already installed in this folder." }
 
 if ($Release) {
-  $zip = Join-Path (Split-Path -Parent $OutDir) "$releaseName-win64.zip"
+  # System and processor in the name, as release pickers (RecompLauncher) expect.
+  $zip = Join-Path (Split-Path -Parent $OutDir) "$releaseName-Windows-x64.zip"
   if (Test-Path $zip) { Remove-Item -Force $zip }
-  Compress-Archive -Path $OutDir -DestinationPath $zip -CompressionLevel Optimal
+  # Not Compress-Archive: Windows PowerShell 5.1's writes "\" in entry names, which zip tools on
+  # other systems (and some launchers) take as part of the file name. Entries use "/".
+  Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+  $top = Split-Path -Leaf $OutDir
+  $archive = [IO.Compression.ZipFile]::Open($zip, [IO.Compression.ZipArchiveMode]::Create)
+  try {
+    foreach ($f in Get-ChildItem $OutDir -Recurse -File) {
+      $name = "$top/" + $f.FullName.Substring($OutDir.TrimEnd('\').Length + 1).Replace('\', '/')
+      [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+        $archive, $f.FullName, $name, [IO.Compression.CompressionLevel]::Optimal)
+    }
+  } finally { $archive.Dispose() }
   $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
   "Release zip: $zip ({0:N1} MB)" -f ((Get-Item $zip).Length / 1MB)
   "SHA-256: $hash"
