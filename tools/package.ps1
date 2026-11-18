@@ -146,8 +146,6 @@ if ($Release) {
 
 NOTE
   This package contains none of the game's art: the launcher shows a plain title.
-  "In-game button icons: PlayStation" needs controller images that aren't included
-  (see the project's README); without them the game keeps the Xbox icons.
 "@
 }
 
@@ -197,13 +195,14 @@ foreach ($l in $licenses) {
   [void]$notices.AppendLine(("-" * 78))
   [void]$notices.AppendLine((Get-Content -Raw $l[2]).TrimEnd())
 }
-# stb (stb_image in the game, stb_truetype via Dear ImGui): its license is the end of the header.
-$stb = Get-Content -Raw (Join-Path $root "third_party\stb\stb_image.h")
+# stb_truetype (Dear ImGui's copy, also used by the game's button icons): its license is the end
+# of the header.
+$stb = Get-Content -Raw (Join-Path $root "third_party\imgui\imstb_truetype.h")
 $i = $stb.LastIndexOf("This software is available under 2 licenses")
 if ($i -lt 0) { throw "stb license text not found" }
 [void]$notices.AppendLine("")
 [void]$notices.AppendLine(("-" * 78))
-[void]$notices.AppendLine("stb (stb_image, stb_truetype)  (MIT or public domain)")
+[void]$notices.AppendLine("stb_truetype  (MIT or public domain)")
 [void]$notices.AppendLine(("-" * 78))
 [void]$notices.AppendLine(($stb.Substring($i) -replace '\*/\s*$', '').TrimEnd())
 [System.IO.File]::WriteAllText((Join-Path $OutDir "THIRD_PARTY_NOTICES.txt"), $notices.ToString().Replace("`r`n", "`n").Replace("`n", "`r`n"))

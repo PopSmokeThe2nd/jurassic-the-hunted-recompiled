@@ -26,15 +26,9 @@
 #endif
 #include <windows.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_STATIC
-#define STBI_ONLY_PNG
-#define STBI_NO_STDIO
-#include <stb_image.h>
-
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STBTT_STATIC
-#include <imstb_truetype.h>  // Dear ImGui's copy of stb_truetype (keycap labels)
+#include <imstb_truetype.h>  // Dear ImGui's copy of stb_truetype (keycap and button labels)
 
 REXCVAR_DEFINE_STRING(button_prompts, "xbox", "Controls",
                       "Button icons in the game's prompts: xbox (original), playstation, or "
@@ -97,20 +91,6 @@ struct Image {
   uint8_t* at(int x, int y) { return &px[(size_t(y) * w + x) * 4]; }
   const uint8_t* at(int x, int y) const { return &px[(size_t(y) * w + x) * 4]; }
 };
-
-const char* PlayStationGlyph(Button b) {
-  switch (b) {
-    case Button::kA: return "PS_CROSS";
-    case Button::kB: return "PS_CIRCLE";
-    case Button::kX: return "PS_SQUARE";
-    case Button::kY: return "PS_TRIANGLE";
-    case Button::kLB: return "PS_L1";
-    case Button::kRB: return "PS_R1";
-    case Button::kDpadUp: return "PS_DPAD_UP";
-    case Button::kRightStickX: return "PS_RS";
-  }
-  return "";
-}
 
 constexpr const char* kArrowLabel = "<arrow>";  // drawn as an up arrow
 
@@ -179,12 +159,16 @@ const KeyFont& GetKeyFont() {
   return font;
 }
 
+void DrawLabel(Image& out, const std::string& label, float max_size, float max_width);
+
 // A keycap (rounded dark key with a light rim) with the label centered, w x h pixels.
-bool RenderKeycap(int w, int h, const std::string& label, Image& out) {
+// `roundness` is the corner radius as a share of the shorter side (0.5: a pill).
+bool RenderKeycap(int w, int h, const std::string& label, Image& out, float roundness = 0.24f) {
   const KeyFont& font = GetKeyFont();
   if (!font.ok || w < 8 || h < 8) return false;
   out = Image{w, h, std::vector<uint8_t>(size_t(w) * h * 4, 0)};
-  const float m = float(std::min(w, h)), radius = m * 0.24f, rim = std::max(1.5f, m * 0.075f);
+  const float m = float(std::min(w, h)), rim = std::max(1.5f, m * 0.075f);
+  const float radius = std::min(m * roundness, m * 0.5f - 1.0f);
   const float cx = w * 0.5f, cy = h * 0.5f, hx = w * 0.5f - 1.0f, hy = h * 0.5f - 1.0f;
   auto sd = [&](float px, float py) {  // signed distance to the rounded rectangle
     const float qx = std::fabs(px - cx) - (hx - radius), qy = std::fabs(py - cy) - (hy - radius);
@@ -230,13 +214,21 @@ bool RenderKeycap(int w, int h, const std::string& label, Image& out) {
     return true;
   }
 
-  // Label: as large as fits, white, centered on the cap height.
+  DrawLabel(out, label, h * (label.size() == 1 ? 0.62f : 0.42f), w * 0.76f);
+  return true;
+}
+
+// White text, as large as fits (starting at font size max_size, no wider than max_width),
+// centered on the image with its capital height.
+void DrawLabel(Image& out, const std::string& label, float max_size, float max_width) {
+  const KeyFont& font = GetKeyFont();
+  if (!font.ok) return;
+  const int w = out.w, h = out.h;
+  const float cx = w * 0.5f, cy = h * 0.5f;
   const stbtt_fontinfo* f = &font.info;
-  int ascent, descent, gap;
-  stbtt_GetFontVMetrics(f, &ascent, &descent, &gap);
   int hx0, hy0, hx1, hy1;
   stbtt_GetCodepointBox(f, 'H', &hx0, &hy0, &hx1, &hy1);
-  float size = h * (label.size() == 1 ? 0.62f : 0.42f);
+  float size = max_size;
   float scale = 0, width = 0;
   for (; size > 6; size -= 1.0f) {
     scale = stbtt_ScaleForPixelHeight(f, size);
@@ -247,7 +239,7 @@ bool RenderKeycap(int w, int h, const std::string& label, Image& out) {
       width += adv * scale;
       if (i + 1 < label.size()) width += stbtt_GetCodepointKernAdvance(f, label[i], label[i + 1]) * scale;
     }
-    if (width <= w * 0.76f) break;
+    if (width <= max_width) break;
   }
   const float baseline = cy + hy1 * scale * 0.5f;
   float pen = cx - width * 0.5f;
@@ -271,22 +263,176 @@ bool RenderKeycap(int w, int h, const std::string& label, Image& out) {
     pen += adv * scale;
     if (i + 1 < label.size()) pen += stbtt_GetCodepointKernAdvance(f, label[i], label[i + 1]) * scale;
   }
-  return true;
 }
 
-bool LoadGlyph(const char* name, Image& out) {
-  HRSRC res = FindResourceA(nullptr, name, MAKEINTRESOURCEA(10) /* RT_RCDATA */);
-  if (!res) return false;
-  const void* data = LockResource(LoadResource(nullptr, res));
-  const DWORD size = SizeofResource(nullptr, res);
-  int w, h, n;
-  stbi_uc* p = stbi_load_from_memory(static_cast<const stbi_uc*>(data), int(size), &w, &h, &n, 4);
-  if (!p) return false;
-  out.w = w;
-  out.h = h;
-  out.px.assign(p, p + size_t(w) * h * 4);
-  stbi_image_free(p);
-  return true;
+// ---- PlayStation symbols ---------------------------------------------------------------------
+// Drawn here (artwork made for this project, no image files): dark round buttons with a light rim
+// and the coloured symbol, L1 / R1 as pills, the D-pad's four arrow pads with "up" lit, and the
+// right stick with an R. Drawn at the size they're shown, 4x4 supersampled.
+
+struct Rgb {
+  float r, g, b;
+};
+
+// Paints every pixel that `inside` covers (4x4 samples per pixel) with color(x, y), over what's
+// already there.
+template <class Inside, class Color>
+void Paint(Image& img, Inside inside, Color color) {
+  constexpr int kSs = 4;
+  for (int y = 0; y < img.h; ++y)
+    for (int x = 0; x < img.w; ++x) {
+      int n = 0;
+      for (int j = 0; j < kSs; ++j)
+        for (int i = 0; i < kSs; ++i) n += inside(x + (i + 0.5f) / kSs, y + (j + 0.5f) / kSs) ? 1 : 0;
+      if (!n) continue;
+      const float a = float(n) / (kSs * kSs);
+      const Rgb c = color(x + 0.5f, y + 0.5f);
+      uint8_t* d = img.at(x, y);
+      const float da = d[3] / 255.0f, out_a = a + da * (1 - a);
+      const float src[3] = {c.r, c.g, c.b};
+      for (int k = 0; k < 3; ++k)
+        d[k] = uint8_t(std::clamp((src[k] * a + d[k] * da * (1 - a)) / out_a, 0.0f, 255.0f) + 0.5f);
+      d[3] = uint8_t(std::clamp(out_a * 255.0f + 0.5f, 0.0f, 255.0f));
+    }
+}
+
+float SegmentDistance(float px, float py, float ax, float ay, float bx, float by) {
+  const float vx = bx - ax, vy = by - ay, wx = px - ax, wy = py - ay;
+  const float t = std::clamp((wx * vx + wy * vy) / (vx * vx + vy * vy), 0.0f, 1.0f);
+  return std::hypot(wx - vx * t, wy - vy * t);
+}
+
+// Signed distance to an equilateral triangle pointing up, centred on its centroid (y down).
+float TriangleDistance(float px, float py, float half_side) {
+  const float k = std::sqrt(3.0f);
+  float x = std::fabs(px) - half_side, y = -py + half_side / k;
+  if (x + k * y > 0) {
+    const float nx = (x - k * y) / 2, ny = (-k * x - y) / 2;
+    x = nx, y = ny;
+  }
+  x -= std::clamp(x, -2 * half_side, 0.0f);
+  return -std::hypot(x, y) * (y < 0 ? -1.0f : 1.0f);
+}
+
+// Dark round base with a light rim, a little lighter at the top (like the keycaps).
+void RoundBase(Image& img, float cx, float cy, float r) {
+  const float rim = std::max(1.5f, r * 0.085f);
+  Paint(img, [&](float x, float y) { return std::hypot(x - cx, y - cy) <= r; },
+        [](float, float) { return Rgb{205, 210, 200}; });
+  Paint(img, [&](float x, float y) { return std::hypot(x - cx, y - cy) <= r - rim; },
+        [&](float, float y) {
+          const float t = std::clamp((y - (cy - r)) / (2 * r), 0.0f, 1.0f);
+          return Rgb{64 - 30 * t, 68 - 32 * t, 64 - 30 * t};
+        });
+}
+
+void FaceButton(Image& img, Button b) {
+  const float cx = img.w * 0.5f, cy = img.h * 0.5f, r = std::min(img.w, img.h) * 0.5f - 1.0f;
+  RoundBase(img, cx, cy, r);
+  const float s = r * 0.42f, half = std::max(1.0f, r * 0.075f);  // symbol size, half the stroke
+  switch (b) {
+    case Button::kA:  // cross, blue
+      Paint(img, [&](float x, float y) {
+              return std::min(SegmentDistance(x, y, cx - s, cy - s, cx + s, cy + s),
+                              SegmentDistance(x, y, cx - s, cy + s, cx + s, cy - s)) <= half;
+            },
+            [](float, float) { return Rgb{126, 178, 240}; });
+      break;
+    case Button::kB:  // circle, red
+      Paint(img, [&](float x, float y) { return std::fabs(std::hypot(x - cx, y - cy) - s) <= half; },
+            [](float, float) { return Rgb{242, 96, 98}; });
+      break;
+    case Button::kX:  // square, pink
+      Paint(img, [&](float x, float y) {
+              const float d = std::max(std::fabs(x - cx), std::fabs(y - cy));
+              return std::fabs(d - s * 0.86f) <= half;
+            },
+            [](float, float) { return Rgb{232, 138, 214}; });
+      break;
+    case Button::kY:  // triangle, green
+      Paint(img, [&](float x, float y) {
+              return std::fabs(TriangleDistance(x - cx, y - cy - s * 0.1f, s * 1.02f)) <= half;
+            },
+            [](float, float) { return Rgb{70, 214, 166}; });
+      break;
+    default:
+      break;
+  }
+}
+
+// The D-pad's four arrow pads, pointing at the centre; "up" lit. The game turns this one tile for
+// all four directions.
+void Dpad(Image& img) {
+  const float cx = img.w * 0.5f, cy = img.h * 0.5f, r = std::min(img.w, img.h) * 0.5f - 1.0f;
+  RoundBase(img, cx, cy, r);
+  // One pad (pointing down at the centre), in units of r: a rectangle with a pointed inner end.
+  static constexpr float kPad[5][2] = {{-0.24f, -0.82f}, {0.24f, -0.82f}, {0.24f, -0.34f},
+                                       {0.0f, -0.12f},   {-0.24f, -0.34f}};
+  for (int dir = 0; dir < 4; ++dir) {
+    // Rotate by 0, 90, 180, 270 degrees: up, right, down, left.
+    const float c = dir == 0 ? 1.0f : dir == 2 ? -1.0f : 0.0f;
+    const float sn = dir == 1 ? 1.0f : dir == 3 ? -1.0f : 0.0f;
+    float pts[5][2];
+    for (int i = 0; i < 5; ++i) {
+      const float x = kPad[i][0] * r, y = kPad[i][1] * r;
+      pts[i][0] = cx + x * c - y * sn;
+      pts[i][1] = cy + x * sn + y * c;
+    }
+    auto inside = [&](float x, float y) {  // convex polygon, either winding
+      bool pos = false, neg = false;
+      for (int i = 0; i < 5; ++i) {
+        const float* a = pts[i];
+        const float* b = pts[(i + 1) % 5];
+        const float cross = (b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]);
+        pos |= cross > 0, neg |= cross < 0;
+      }
+      return !(pos && neg);
+    };
+    const Rgb lit{246, 246, 240}, dim{118, 122, 116};
+    Paint(img, inside, [&](float, float) { return dir == 0 ? lit : dim; });
+  }
+}
+
+// The right stick from above: a raised cap inside a ring, with an R.
+void RightStick(Image& img) {
+  const float cx = img.w * 0.5f, cy = img.h * 0.5f, r = std::min(img.w, img.h) * 0.5f - 1.0f;
+  RoundBase(img, cx, cy, r);
+  const float cap = r * 0.72f;
+  Paint(img, [&](float x, float y) { return std::hypot(x - cx, y - cy) <= cap; },
+        [&](float, float y) {
+          const float t = std::clamp((y - (cy - cap)) / (2 * cap), 0.0f, 1.0f);
+          return Rgb{92 - 34 * t, 96 - 36 * t, 92 - 34 * t};
+        });
+  Paint(img, [&](float x, float y) {
+          return std::fabs(std::hypot(x - cx, y - cy) - cap) <= std::max(0.75f, r * 0.03f);
+        },
+        [](float, float) { return Rgb{150, 154, 146}; });
+  DrawLabel(img, "R", cap * 1.15f, cap * 1.2f);
+}
+
+// The PlayStation version of a button, w x h pixels.
+bool RenderPlayStation(Button b, int w, int h, Image& out) {
+  if (w < 8 || h < 8) return false;
+  out = Image{w, h, std::vector<uint8_t>(size_t(w) * h * 4, 0)};
+  switch (b) {
+    case Button::kA:
+    case Button::kB:
+    case Button::kX:
+    case Button::kY:
+      FaceButton(out, b);
+      return true;
+    case Button::kLB:
+      return RenderKeycap(w, h, "L1", out, 0.5f);
+    case Button::kRB:
+      return RenderKeycap(w, h, "R1", out, 0.5f);
+    case Button::kDpadUp:
+      Dpad(out);
+      return true;
+    case Button::kRightStickX:
+      RightStick(out);
+      return true;
+  }
+  return false;
 }
 
 // ---- DXT5 (BC3) ------------------------------------------------------------------------------
@@ -537,10 +683,20 @@ bool BuildTexture(Style style, const TextureEdit& edit, const fs::path& game_roo
     Image glyph;
     bool keep_aspect = c.keep_aspect;
     if (style == Style::kPlayStation) {
-      if (!LoadGlyph(PlayStationGlyph(c.button), glyph)) {
-        REXLOG_WARN("Button prompts: missing image {}", PlayStationGlyph(c.button));
+      // Drawn at the size it's shown: round buttons in a square, L1 / R1 as pills at most about
+      // twice as wide as they're high.
+      const float aw = area.x1 - area.x0, ah = area.y1 - area.y0;
+      const bool pill = c.button == Button::kLB || c.button == Button::kRB;
+      const float gw = pill ? std::min(aw, ah * 2.0f) : std::min(aw, ah);
+      const float gh = pill ? ah : std::min(aw, ah);
+      area = {area.x0 + (aw - gw) * 0.5f, area.y0 + (ah - gh) * 0.5f, area.x0 + (aw + gw) * 0.5f,
+              area.y0 + (ah + gh) * 0.5f};
+      area = {std::floor(area.x0), std::floor(area.y0), std::ceil(area.x1), std::ceil(area.y1)};
+      if (!RenderPlayStation(c.button, int(area.x1 - area.x0), int(area.y1 - area.y0), glyph)) {
+        REXLOG_WARN("Button prompts: couldn't draw the PlayStation icons (no system font)");
         return false;
       }
+      keep_aspect = false;
     } else {
       // Keycaps are drawn at their final size (crisp text); shoulder-button cells are very wide,
       // so cap those at a key-like width.

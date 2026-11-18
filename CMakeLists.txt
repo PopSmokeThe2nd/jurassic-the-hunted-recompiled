@@ -39,7 +39,6 @@ else()
 endif()
 
 rexglue_setup_target(jurassichunted GPU_PLUGINS xenos)
-target_include_directories(jurassichunted PRIVATE third_party/stb)  # stb_image (PNG decoding)
 
 if(WIN32)
     target_link_libraries(jurassichunted PRIVATE user32)  # GetAsyncKeyState (src/pc_input.cpp)
@@ -109,5 +108,5 @@ if(WIN32)
     set_source_files_properties(launcher/launcher.rc PROPERTIES OBJECT_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/launcher/assets/icon.ico;${CMAKE_CURRENT_SOURCE_DIR}/launcher/assets/background.jpg;${CMAKE_CURRENT_SOURCE_DIR}/launcher/assets/logo.png;${_glyph_pngs}")
     set_source_files_properties(src/jurassichunted.rc PROPERTIES OBJECT_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/launcher/assets/icon.ico;${_glyph_pngs}")
+        "${CMAKE_CURRENT_SOURCE_DIR}/launcher/assets/icon.ico")
 endif()

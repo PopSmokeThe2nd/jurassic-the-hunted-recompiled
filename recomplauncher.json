@@ -25,7 +25,8 @@
     {
       "id": "main",
       "format": "toml",
-      "file": [{ "path": "{install}/jurassichunted.toml" }]
+      "file": [{ "path": "{install}/jurassichunted.toml" }],
+      "new": { "button_prompts": "\"{pad}\"" }
     }
   ],
   "saves": [
@@ -154,9 +155,10 @@
     },
     {
       "id": "prompts", "label": "Button icons", "group": "Controls",
-      "help": "The buttons shown in the game's own prompts. Applies when the game starts.",
+      "help": "The buttons shown in the game's own prompts. Starts on the controller you have plugged in.",
       "choices": [
         { "label": "Xbox", "set": { "button_prompts": "\"xbox\"" } },
+        { "label": "PlayStation", "set": { "button_prompts": "\"playstation\"" } },
         { "label": "Keyboard keys", "set": { "button_prompts": "\"keyboard\"" } }
       ],
       "defaults": { "button_prompts": "\"xbox\"" }

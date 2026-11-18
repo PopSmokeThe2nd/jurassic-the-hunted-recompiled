@@ -22,6 +22,6 @@ SOFTWARE.
 
 This license covers this project's own source code, tools and documentation
 only. Third-party code keeps its own license (third_party/imgui: MIT, see
-third_party/imgui/LICENSE.txt; third_party/stb: public domain / MIT, see the end
-of stb_image.h). It grants nothing for Jurassic: The Hunted, its executable, its
+third_party/imgui/LICENSE.txt; its imstb_*.h files: public domain / MIT, see the
+end of each). It grants nothing for Jurassic: The Hunted, its executable, its
 data or its art, which belong to their respective owners and are not included.

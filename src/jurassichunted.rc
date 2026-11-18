@@ -1,23 +1,11 @@
 // Game executable resources: icon (also used for the window and taskbar) and version info.
 #include <winver.h>
 
-// Optional art (see launcher/launcher.rc): the icon is the game's own, the button images come
-// from assets/glyphs. CMake defines JTH_LAUNCHER_ART / JTH_GLYPHS when they're present.
+// Optional art (see launcher/launcher.rc): the icon is the game's own. CMake defines
+// JTH_LAUNCHER_ART when it's present. (The PlayStation button icons are drawn in code:
+// src/button_prompts.cpp.)
 #ifdef JTH_LAUNCHER_ART
 1 ICON "../launcher/assets/icon.ico"
-#endif
-
-// PlayStation button images, drawn into the game's own button textures when
-// button_prompts = "playstation" (src/button_prompts.cpp). Without them the Xbox icons stay.
-#ifdef JTH_GLYPHS
-PS_CROSS     RCDATA "../assets/glyphs/ps_cross.png"
-PS_CIRCLE    RCDATA "../assets/glyphs/ps_circle.png"
-PS_SQUARE    RCDATA "../assets/glyphs/ps_square.png"
-PS_TRIANGLE  RCDATA "../assets/glyphs/ps_triangle.png"
-PS_L1        RCDATA "../assets/glyphs/ps_l1.png"
-PS_R1        RCDATA "../assets/glyphs/ps_r1.png"
-PS_DPAD_UP   RCDATA "../assets/glyphs/ps_dpad_up.png"
-PS_RS        RCDATA "../assets/glyphs/ps_rs.png"
 #endif
 
 VS_VERSION_INFO VERSIONINFO
