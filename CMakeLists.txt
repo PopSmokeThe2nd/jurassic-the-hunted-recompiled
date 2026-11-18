@@ -85,17 +85,22 @@ if(WIN32)
         d3d11 dxgi d3dcompiler windowscodecs ole32 shell32 bcrypt user32 dwmapi)
     # Art is embedded via the .rc files; rebuild the resources when the asset files change. Neither
     # set is in the repository (the launcher art is the game's own), so each is optional.
+    # JTH_NO_GAME_ART=ON leaves both out even when present: release packages for others
+    # (tools/package.ps1 -Release) must not contain the game's art or the button images.
+    option(JTH_NO_GAME_ART "Build without the launcher art and button images (release packages)" OFF)
     set(_art "${CMAKE_CURRENT_SOURCE_DIR}/launcher/assets")
     set(_rc_defs "")
-    if(EXISTS "${_art}/icon.ico" AND EXISTS "${_art}/background.jpg" AND EXISTS "${_art}/logo.png")
+    if(JTH_NO_GAME_ART)
+        message(STATUS "JTH_NO_GAME_ART: building without the launcher art and button images")
+    elseif(EXISTS "${_art}/icon.ico" AND EXISTS "${_art}/background.jpg" AND EXISTS "${_art}/logo.png")
         list(APPEND _rc_defs JTH_LAUNCHER_ART)
     else()
         message(STATUS "launcher/assets (icon, background, logo) not found: building without them")
     endif()
     file(GLOB _glyph_pngs "${CMAKE_CURRENT_SOURCE_DIR}/assets/glyphs/*.png")
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/glyphs/ps_cross.png")
+    if(NOT JTH_NO_GAME_ART AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/glyphs/ps_cross.png")
         list(APPEND _rc_defs JTH_GLYPHS)
-    else()
+    elseif(NOT JTH_NO_GAME_ART)
         message(STATUS "assets/glyphs not found: button images are drawn in code")
     endif()
     set_source_files_properties(launcher/launcher.rc src/jurassichunted.rc PROPERTIES
