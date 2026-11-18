@@ -1,0 +1,56 @@
+# Example settings for Jurassic: The Hunted Recompiled.
+# Copy this file next to jurassichunted.exe as "jurassichunted.toml" and edit as needed.
+# Every setting can also be given on the command line, e.g. --mouse_sensitivity=1.5
+
+# ---- Graphics -----------------------------------------------------------------------------
+internal_resolution = "auto"  # auto (match your display) | 720p (console) | 1440p (2x) | 4k (3x)
+                              # 4k on a 1440p monitor = supersampling (smoothest edges)
+upscaler = "fsr"              # fsr (AMD FSR 1, used when the window is bigger than the
+                              # internal resolution) | cas (AMD sharpening) | bilinear |
+                              # fsr2 / fsr3 (experimental, may ghost)
+fov = 86                      # horizontal field of view at 16:9, 60-120 (game default 86);
+                              # also adjustable live in the F2 PC Options panel
+hdr_max_brightening = 2.0     # limit for the auto-exposure's brightening (0 = each level's own;
+                              # The Lost Castaways allows 16x, which washed it out to white)
+# present_fsr_sharpness_reduction = 0.2   # FSR sharpening: 0 = sharpest, 2 = softest
+# fullscreen = true                       # false = windowed (see window_width/window_height)
+# vsync = true
+
+# ---- Keyboard and mouse -------------------------------------------------------------------
+pc_controls = true          # false = controller only
+mouse_sensitivity = 1.0     # 1.0 = 0.05 degrees per mouse count (~23 cm/360 at 800 DPI)
+                            # Invert look follows the in-game Options > Invert Look setting.
+weapon_wheel = true         # hold change_weapon for a weapon wheel; tap = next weapon;
+                            # number keys 1-9 pick a weapon (unless bound below). Pictures of
+                            # your own: weapon_images\<weapon folder>.png, e.g. sho_mossberg.png
+
+# Key names: A-Z, 0-9, F1-F12, Space, Enter, Escape, Tab, Backspace, Shift/LShift/RShift,
+# Ctrl/LCtrl/RCtrl, Alt/LAlt/RAlt, Up/Down/Left/Right, Insert, Delete, Home, End, PageUp,
+# PageDown, CapsLock, Numpad0-9, Grave, Minus, Equals, LBracket, RBracket, Semicolon, Quote,
+# Comma, Period, Slash, Backslash, LMB, RMB, MMB, Mouse4, Mouse5.
+# Separate alternatives with commas.
+[bind]
+move_forward = "W"
+move_back = "S"
+move_left = "A"
+move_right = "D"
+fire = "LMB"                # RT
+aim = "RMB"                 # LT (hold)
+jump = "Space"              # A
+crouch = "C,LCtrl"          # B
+reload = "R"                # X
+change_weapon = "Q"         # Y: tap = next weapon, hold = weapon wheel (mouse wheel = next)
+grenade = "G"               # RB
+adrenaline = "F"            # LB
+sprint = "LShift"           # left stick click
+melee = "V,Mouse4"          # right stick click
+interact = "E"              # D-pad
+objectives = "Tab"          # Back
+pause = "Escape"            # Start in game; Start + B (skip / back) in menus
+menu_accept = "Enter"       # A
+menu_back = "Backspace"     # B
+menu_start = "P"            # Start
+dpad_up = "Up"
+dpad_down = "Down"
+dpad_left = "Left"
+dpad_right = "Right"

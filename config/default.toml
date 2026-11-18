@@ -1,0 +1,210 @@
+# Recompiler hints for default.xex (Jurassic: The Hunted, USA, title 41560870, built 2009-10-04).
+#
+# Each entry here fixes something the automatic analysis could not work out on its own.
+# Addresses are guest virtual addresses (image base 0x82000000).
+
+# C runtime setjmp / longjmp. The 1344-byte jump buffer holds the GPRs, FPRs, VMX registers, CR,
+# the return address (+308) and r1 (+144). Lua uses them for script errors: luaD_rawrunprotected
+# (0x8260BD70, under lua_pcall) calls setjmp and luaD_throw longjmps back to it; a few image
+# decoders use them the same way. Translated as ordinary functions, longjmp can't jump back (it
+# overwrote the guest registers, r1 included, and returned into the code that raised the error),
+# so ANY script error - even one the game catches and ignores - corrupted state and ended in
+# "PANIC: unprotected error in call to Lua API". L13 died that way while loading. With these set,
+# the code generator emits ppc_setjmp / ppc_longjmp (generated pch: host setjmp/longjmp keyed by
+# the guest buffer address, per thread).
+setjmp_address = 0x8261C960
+longjmp_address = 0x8261C520
+
+# Functions the code generator translates wrongly are replaced by hand in src/fixes.cpp
+# (e.g. sub_8236F3C8, whose function-table tail call was misread as a switch).
+
+[functions]
+# C++ this-pointer adjustor thunk: addi r3,r3,8 ; b 0x824FF588.
+# Only reached by a tail-jump from the neighbouring thunk at 0x82500B78 (and via vtables).
+0x82500B70 = { size = 0x8 }
+
+# Small leaf function (sets a mode flag at +0x23C based on r4), reached only by a tail-jump
+# from 0x82509674.
+0x8251A420 = { size = 0x28 }
+
+# One-instruction stub: b 0x8250B5E8. Tail-jumped to from adjustor thunks at 0x8250BAB8
+# and 0x8250DA40.
+0x8250D8C0 = { size = 0x4 }
+
+# --- Found by tools/find_missing_funcs.py (code pointers in vtables / function tables that the
+# analyzer had merged into the preceding function; mostly C++ adjustor thunks and tiny methods).
+# (0x82220804 rejected: its "reference" at 0x8201103C is font bitmap data, and the code there is
+#  an inner block of sub_822205E0 that branches back into it.)
+# (0x82300004 rejected: zero padding word; the lis/addi building it is a base pointer, not a callback.)
+0x8236F3F0 = { size = 0x1C }  # inside sub_8236F3C8; 1 data ref(s), first at 0x827264D8
+0x82504238 = { size = 0x8 }  # inside sub_82504230; 5 data ref(s), first at 0x82051EC4
+0x82504240 = { size = 0x8 }  # inside sub_82504230; 5 data ref(s), first at 0x82051EEC
+0x82504248 = { size = 0x8 }  # inside sub_82504230; 5 data ref(s), first at 0x82051EC0
+0x82504250 = { size = 0x8 }  # inside sub_82504230; 5 data ref(s), first at 0x82051EB4
+0x82504258 = { size = 0x8 }  # inside sub_82504230; 5 data ref(s), first at 0x82051EBC
+0x82504260 = { size = 0x8 }  # inside sub_82504230; 1 data ref(s), first at 0x82051EFC
+0x82504270 = { size = 0x8 }  # inside sub_82504268; 5 data ref(s), first at 0x82051EE4
+0x82504278 = { size = 0x8 }  # inside sub_82504268; 5 data ref(s), first at 0x82051EB8
+0x82504280 = { size = 0x8 }  # inside sub_82504268; 3 data ref(s), first at 0x82051EB0
+0x82509070 = { size = 0x8 }  # inside sub_82509068; 5 data ref(s), first at 0x82051ED8
+0x82509078 = { size = 0x8 }  # inside sub_82509068; 2 data ref(s), first at 0x82052268
+0x82509080 = { size = 0x8 }  # inside sub_82509068; 2 data ref(s), first at 0x82052238
+0x825092F8 = { size = 0x8 }  # inside sub_825092F0; 5 data ref(s), first at 0x82051ED4
+0x82509300 = { size = 0x8 }  # inside sub_825092F0; 1 data ref(s), first at 0x82052344
+0x82509310 = { size = 0x8 }  # inside sub_82509308; 5 data ref(s), first at 0x82051ECC
+0x82509318 = { size = 0x8 }  # inside sub_82509308; 5 data ref(s), first at 0x82051ED0
+0x82509320 = { size = 0x8 }  # inside sub_82509308; 5 data ref(s), first at 0x82051EF0
+0x82509A58 = { size = 0x18 }  # inside sub_82509A40; 1 data ref(s), first at 0x8205241C
+0x8250A710 = { size = 0x8 }  # inside sub_8250A708; 1 data ref(s), first at 0x820523B0
+0x8250B5D8 = { size = 0x8 }  # inside sub_8250B5D0; 1 data ref(s), first at 0x82052474
+0x8250E350 = { size = 0x2C }  # inside sub_8250E298; 1 data ref(s), first at 0x82052650
+0x8251D9D0 = { size = 0x8 }  # inside sub_8251D9C0; 2 data ref(s), first at 0x820564E8
+0x82550770 = { size = 0x18 }  # inside sub_82550758; 2 data ref(s), first at 0x82073DB8
+0x82552A00 = { size = 0x8 }  # inside sub_825529E8; 1 data ref(s), first at 0x82073E24
+0x82552A20 = { size = 0x8 }  # inside sub_82552A08; 1 data ref(s), first at 0x82073E1C
+0x82552BA0 = { size = 0x20 }  # inside sub_82552B80; 1 data ref(s), first at 0x82073E70
+0x82552BC0 = { size = 0x20 }  # inside sub_82552B80; 1 data ref(s), first at 0x82073E74
+0x82552BE0 = { size = 0x20 }  # inside sub_82552B80; 1 data ref(s), first at 0x82073E78
+0x82552C00 = { size = 0x20 }  # inside sub_82552B80; 1 data ref(s), first at 0x82073E7C
+0x82552C20 = { size = 0x20 }  # inside sub_82552B80; 1 data ref(s), first at 0x82073E80
+0x82552C40 = { size = 0x20 }  # inside sub_82552B80; 1 data ref(s), first at 0x82073E84
+0x82552C60 = { size = 0x20 }  # inside sub_82552B80; 1 data ref(s), first at 0x82073E88
+0x82552C80 = { size = 0x20 }  # inside sub_82552B80; 1 data ref(s), first at 0x82073E8C
+0x82552CA0 = { size = 0x20 }  # inside sub_82552B80; 1 data ref(s), first at 0x82073E90
+0x82552CC0 = { size = 0x20 }  # inside sub_82552B80; 1 data ref(s), first at 0x82073E94
+0x82559D18 = { size = 0x8 }  # inside sub_82559D00; 2 data ref(s), first at 0x82073DAC
+0x8263A7A8 = { size = 0x8 }  # inside sub_8263A790; 1 data ref(s), first at 0x8273A6BC
+
+# --- Second pass: callbacks whose address is built in code (lis/addi), e.g. vtable-call thunks
+# registered as handlers. Found after a crash at 0x8234E270 while loading the first level.
+0x82117A40 = { size = 0x10 }  # inside sub_82117A30; 1 data ref(s), first at 0x8211A020
+0x82117A50 = { size = 0x10 }  # inside sub_82117A30; 1 data ref(s), first at 0x8211A048
+0x82117A60 = { size = 0x10 }  # inside sub_82117A30; 1 data ref(s), first at 0x8211A070
+0x822A75A0 = { size = 0x10 }  # inside sub_822A7590; 1 data ref(s), first at 0x822AAFC4
+0x822A75B0 = { size = 0x10 }  # inside sub_822A7590; 1 data ref(s), first at 0x822AAFD8
+0x8234E270 = { size = 0x10 }  # inside sub_8234E260; 6 data ref(s), first at 0x8234ED18
+0x82419D60 = { size = 0x28 }  # inside sub_82419D48; 1 data ref(s), first at 0x82419F94
+0x82419D88 = { size = 0x28 }  # inside sub_82419D48; 1 data ref(s), first at 0x82419F9C
+0x82419DB0 = { size = 0x18 }  # inside sub_82419D48; 1 data ref(s), first at 0x82419FA4
+0x82419DC8 = { size = 0x18 }  # inside sub_82419D48; 1 data ref(s), first at 0x82419FAC
+0x82419DE0 = { size = 0x18 }  # inside sub_82419D48; 1 data ref(s), first at 0x82419F54
+0x82419DF8 = { size = 0x18 }  # inside sub_82419D48; 1 data ref(s), first at 0x82419F4C
+0x82419E10 = { size = 0x18 }  # inside sub_82419D48; 1 data ref(s), first at 0x82419F50
+0x82554538 = { size = 0x10 }  # inside sub_82554528; 1 data ref(s), first at 0x82556AD8
+
+# --- Hooks ------------------------------------------------------------------------------------
+
+# Native mouse look. sub_821C7EB0 is the player's look update: it reads the LookHorizontal /
+# LookVertical axes, applies the stick curve, invert option, sensitivity option and aim assist,
+# leaving yaw/pitch deltas (radians) in stack floats at r1+80 / r1+84. At 0x821C80CC (reached on
+# every path) the deltas still go through zoom scaling, the cutscene look-lock (sub_821743D8) and
+# the aiming slow-down, then are applied by sub_821C0DC8 / sub_821C4B28. JthMouseLook
+# (src/pc_input.cpp) adds the raw mouse movement here.
+# Lua errors (src/dev_lua.cpp). 0x8260C748 is luaD_throw(L = r3, status = r4), where every script
+# error passes before it unwinds to the protected call; the hook (after the prologue, r3/r4 still
+# intact) logs the error message so script failures show up in the log instead of vanishing.
+[[midasm_hook]]
+address = 0x8260C758
+name = "JthLuaThrow"
+registers = ["r3", "r4"]
+
+# The renderer's HDR parameter setters (src/graphics_settings.cpp): at entry f3 = max brightening,
+# capped by hdr_max_brightening. sub_8213E3E8 sets the target values, sub_8213E468 the current.
+[[midasm_hook]]
+address = 0x8213E3E8
+name = "JthHdrParams"
+registers = ["f3"]
+
+[[midasm_hook]]
+address = 0x8213E468
+name = "JthHdrParams"
+registers = ["f3"]
+
+# ActorProperties_SPBase's apply-damage method (sub_82368F98, r3 = the victim's ActorProperties:
+# +8 health, +192 its actor; r4 = damage info, +92 source: a bullet (type 16, shooter at +212) or
+# the attacker itself (type 7)). 0x823692E4 is where all paths meet with the final damage in f30
+# (after the difficulty multipliers Dmg_Player / Dmg_Bot), the attacker in r27 and the victim's
+# properties in r29: the one-hit-kill cheat and --log_damage (src/cheats.cpp).
+[[midasm_hook]]
+address = 0x823692E4
+name = "JthDamage"
+registers = ["r27", "r29", "f30"]
+
+# The plain ActorProperties apply-damage (sub_822D7510: health at r3+8 -= info+24), after the
+# prologue: same cheat for objects using the base class.
+[[midasm_hook]]
+address = 0x822D7520
+name = "JthDamageBase"
+registers = ["r3", "r4"]
+
+# Animal::Damage (sub_822EF018, Animal vtable slot 90; humans use Actor::Damage -> the properties
+# above): dinosaurs keep their own health at +412 and lose info+24 at 0x822EF114. Same cheat.
+[[midasm_hook]]
+address = 0x822EF114
+name = "JthDamageAnimal"
+registers = ["r3", "r4"]
+
+# luaL_loadbuffer (0x82604C30, r4 = code, r5 = length, r6 = chunk name), after the prologue:
+# --log_lua_chunks=<text> logs the chunks whose code contains <text> ("*" = all), e.g. to find
+# which object a prefab script belongs to (chunk names are "[PrefabPosition - <ID>]").
+[[midasm_hook]]
+address = 0x82604C3C
+name = "JthLuaLoad"
+registers = ["r4", "r5", "r6"]
+
+[[midasm_hook]]
+address = 0x821C80CC
+name = "JthMouseLook"
+registers = ["r1", "r31"]
+
+# Field of view. sub_82260948 is Camera::Update: it takes the camera FOV (+148, 70 deg at 4:3),
+# widens it for 16:9 when the renderer's widescreen flag (+271) is set, and at 0x82260A98 calls
+# the perspective builder sub_822640F0(proj, f1 = horizontal FOV in radians, f2 = aspect (h/w),
+# f3 = near, f4 = far). JthCameraFov (src/pc_options.cpp) rescales f1 for the player camera.
+[[midasm_hook]]
+address = 0x82260A98
+name = "JthCameraFov"
+registers = ["f1", "r31"]
+
+# Frame pacing for frame rates above the original 30 fps. 0x824BA09C is the game's only call to
+# VdSwap (frame present), in sub_824B9E28. JthFramePace (src/framerate.cpp) waits there so frames
+# are presented at an even rate; it does nothing at the default 30 fps.
+[[midasm_hook]]
+address = 0x824BA09C
+name = "JthFramePace"
+registers = []
+
+# The game's file layer (src/game_files.cpp): stream open (sub_82130F08, r3 = stream, r4 = path
+# relative to the disc), read (sub_82130378, r3 = stream, r4 = buffer, r5 = size), the read's two
+# returns (disc file / archive file, r3 = bytes read) and close (sub_82130598, destructor
+# sub_82130AB8). Used to swap in the PlayStation button textures (src/button_prompts.cpp) and for
+# the --dump_game_files developer tool.
+[[midasm_hook]]
+address = 0x82130F08
+name = "JthOpenFile"
+registers = ["r3", "r4"]
+
+[[midasm_hook]]
+address = 0x82130378
+name = "JthStreamRead"
+registers = ["r3", "r4", "r5"]
+
+[[midasm_hook]]
+address = 0x82130450
+name = "JthStreamReadDone"
+registers = ["r3"]
+
+[[midasm_hook]]
+address = 0x821304A8
+name = "JthStreamReadDone"
+registers = ["r3"]
+
+[[midasm_hook]]
+address = 0x82130598
+name = "JthStreamClose"
+registers = ["r3"]
+
+[[midasm_hook]]
+address = 0x82130AB8
+name = "JthStreamClose"
+registers = ["r3"]

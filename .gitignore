@@ -1,0 +1,33 @@
+# Game data and art: never commit copyrighted game files
+*.iso
+*.xex
+game/
+# The launcher's icon, background and logo are the game's own art
+launcher/assets/
+# Screenshots of the game
+docs/
+# Controller button images (not ours to redistribute)
+assets/
+# Your own weapon pictures for the weapon wheel
+weapon_images/
+
+# Build output and generated recompiled code (derived from the game's executable)
+out/
+dist/
+generated/*
+!generated/rexglue.cmake
+build/
+logs/
+*.dmp
+
+# Local settings
+/jurassichunted.toml
+
+# Editor / OS / tools
+.vs/
+.vscode/
+.claude/
+__pycache__/
+*.pyc
+*.user
+Thumbs.db

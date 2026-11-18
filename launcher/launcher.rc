@@ -1,0 +1,70 @@
+// Launcher resources: icon, embedded art (so JurassicTheHunted.exe is self-contained), version.
+#include <winver.h>
+
+// The game's own art (icon, background, logo) isn't in the repository; CMake defines
+// JTH_LAUNCHER_ART when launcher/assets has it. Without it the launcher shows a plain title.
+#ifdef JTH_LAUNCHER_ART
+1 ICON "assets/icon.ico"
+
+101 RCDATA "assets/background.jpg"
+102 RCDATA "assets/logo.png"
+#endif
+
+// Controller button images for the CONTROLS tab (assets/glyphs, see tools/import_glyphs.py).
+// Named after the glyph id; a glyph without an image is drawn in code. CMake defines JTH_GLYPHS
+// when assets/glyphs has the set.
+#ifdef JTH_GLYPHS
+XBOX_A         RCDATA "../assets/glyphs/xbox_a.png"
+XBOX_B         RCDATA "../assets/glyphs/xbox_b.png"
+XBOX_X         RCDATA "../assets/glyphs/xbox_x.png"
+XBOX_Y         RCDATA "../assets/glyphs/xbox_y.png"
+XBOX_LB        RCDATA "../assets/glyphs/xbox_lb.png"
+XBOX_RB        RCDATA "../assets/glyphs/xbox_rb.png"
+XBOX_LT        RCDATA "../assets/glyphs/xbox_lt.png"
+XBOX_RT        RCDATA "../assets/glyphs/xbox_rt.png"
+XBOX_LS        RCDATA "../assets/glyphs/xbox_ls.png"
+XBOX_RS        RCDATA "../assets/glyphs/xbox_rs.png"
+XBOX_LS_CLICK  RCDATA "../assets/glyphs/xbox_ls_click.png"
+XBOX_RS_CLICK  RCDATA "../assets/glyphs/xbox_rs_click.png"
+XBOX_DPAD_UP   RCDATA "../assets/glyphs/xbox_dpad_up.png"
+XBOX_BACK      RCDATA "../assets/glyphs/xbox_back.png"
+XBOX_START     RCDATA "../assets/glyphs/xbox_start.png"
+PS_CROSS       RCDATA "../assets/glyphs/ps_cross.png"
+PS_CIRCLE      RCDATA "../assets/glyphs/ps_circle.png"
+PS_SQUARE      RCDATA "../assets/glyphs/ps_square.png"
+PS_TRIANGLE    RCDATA "../assets/glyphs/ps_triangle.png"
+PS_L1          RCDATA "../assets/glyphs/ps_l1.png"
+PS_R1          RCDATA "../assets/glyphs/ps_r1.png"
+PS_L2          RCDATA "../assets/glyphs/ps_l2.png"
+PS_R2          RCDATA "../assets/glyphs/ps_r2.png"
+PS_LS          RCDATA "../assets/glyphs/ps_ls.png"
+PS_RS          RCDATA "../assets/glyphs/ps_rs.png"
+PS_L3          RCDATA "../assets/glyphs/ps_l3.png"
+PS_R3          RCDATA "../assets/glyphs/ps_r3.png"
+PS_DPAD_UP     RCDATA "../assets/glyphs/ps_dpad_up.png"
+PS_SHARE       RCDATA "../assets/glyphs/ps_share.png"
+PS_OPTIONS     RCDATA "../assets/glyphs/ps_options.png"
+#endif
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION 1,0,0,0
+PRODUCTVERSION 1,0,0,0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "FileDescription", "Jurassic: The Hunted Recompiled - Launcher"
+      VALUE "ProductName", "Jurassic: The Hunted Recompiled"
+      VALUE "FileVersion", "1.0.0"
+      VALUE "ProductVersion", "1.0.0"
+      VALUE "OriginalFilename", "JurassicTheHunted.exe"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END

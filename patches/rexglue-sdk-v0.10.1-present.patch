@@ -1,0 +1,340 @@
+diff --git a/include/rex/ui/imgui_dialog.h b/include/rex/ui/imgui_dialog.h
+index a7ab6b30..7e9cff9f 100644
+--- a/include/rex/ui/imgui_dialog.h
++++ b/include/rex/ui/imgui_dialog.h
+@@ -39,6 +39,12 @@ class ImGuiDialog {
+ 
+   void Draw();
+ 
++  // [Jurassic: The Hunted Recompiled] Whether the window must keep repainting continuously while
++  // this dialog exists (interactive dialogs). A dialog that is usually idle (e.g. notification
++  // toasts) can return false while it has nothing to show; it is then drawn whenever the window is
++  // painted anyway (each new guest frame).
++  virtual bool WantsContinuousRepaint() { return true; }
++
+  protected:
+   ImGuiDialog(ImGuiDrawer* imgui_drawer);
+ 
+diff --git a/include/rex/ui/overlay/achievement_toast.h b/include/rex/ui/overlay/achievement_toast.h
+index 76426017..5dfa1fde 100644
+--- a/include/rex/ui/overlay/achievement_toast.h
++++ b/include/rex/ui/overlay/achievement_toast.h
+@@ -35,6 +35,12 @@ class AchievementToastDialog : public AchievementNotificationDialog {
+   // Thread-safe: safe to call from any thread, including guest threads.
+   void Push(const rex::system::AchievementEvent& event) override;
+ 
++  // [Jurassic: The Hunted Recompiled] Repaint continuously only while a toast is queued/visible.
++  bool WantsContinuousRepaint() override {
++    std::lock_guard<std::mutex> lock(mutex_);
++    return !queue_.empty();
++  }
++
+  protected:
+   void OnDraw(ImGuiIO& io) override;
+ 
+diff --git a/include/rex/ui/presenter.h b/include/rex/ui/presenter.h
+index afb4a30b..77a433a9 100644
+--- a/include/rex/ui/presenter.h
++++ b/include/rex/ui/presenter.h
+@@ -367,6 +367,9 @@ class Presenter {
+   }
+   // For simplicity, may be called repeatedly even if no changes have been made.
+   void SetGuestOutputPaintConfigFromUIThread(const GuestOutputPaintConfig& new_config);
++  // [Jurassic: The Hunted Recompiled] Re-reads the present_* settings and applies them. Any
++  // thread; the change is applied on the UI thread. Called when those settings change.
++  void ReloadGuestOutputPaintConfigFromCVars();
+ 
+   void AddUIDrawerFromUIThread(UIDrawer* drawer, size_t z_order);
+   void RemoveUIDrawerFromUIThread(UIDrawer* drawer);
+diff --git a/src/graphics/graphics_system.cpp b/src/graphics/graphics_system.cpp
+index 8f2fcb0b..4b56c2eb 100644
+--- a/src/graphics/graphics_system.cpp
++++ b/src/graphics/graphics_system.cpp
+@@ -31,9 +31,11 @@
+ #include <rex/ui/window.h>
+ #include <rex/ui/windowed_app_context.h>
+ 
++// [Jurassic: The Hunted Recompiled] Hot-reloadable: changes are passed to the running command
++// processor (SetDesiredSwapPostEffect is thread-safe), so an in-game menu can switch FXAA live.
+ REXCVAR_DEFINE_STRING(swap_post_effect, "none", "GPU", "Swap post effect: none, fxaa, fxaa_extreme")
+     .allowed({"none", "fxaa", "fxaa_extreme"})
+-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
+ REXCVAR_DEFINE_BOOL(store_shaders, true, "GPU",
+                     "Store shaders persistently and load them when loading games to avoid "
+@@ -41,6 +43,10 @@ REXCVAR_DEFINE_BOOL(store_shaders, true, "GPU",
+ 
+ namespace {
+ 
++// [JTH] The running command processor, for live swap_post_effect changes.
++std::mutex g_live_command_processor_mutex;
++rex::graphics::CommandProcessor* g_live_command_processor = nullptr;
++
+ rex::graphics::CommandProcessor::SwapPostEffect ParseSwapPostEffect(
+     const std::string& effect_name) {
+   std::string lowered = effect_name;
+@@ -136,6 +142,20 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
+     return X_STATUS_UNSUCCESSFUL;
+   }
+   command_processor_->SetDesiredSwapPostEffect(ParseSwapPostEffect(REXCVAR_GET(swap_post_effect)));
++  // [JTH] Follow runtime changes of swap_post_effect.
++  {
++    std::lock_guard lock(g_live_command_processor_mutex);
++    g_live_command_processor = command_processor_.get();
++  }
++  static std::once_flag swap_post_effect_callback_registered;
++  std::call_once(swap_post_effect_callback_registered, [] {
++    rex::cvar::RegisterChangeCallback("swap_post_effect", [](std::string_view, std::string_view value) {
++      std::lock_guard lock(g_live_command_processor_mutex);
++      if (g_live_command_processor) {
++        g_live_command_processor->SetDesiredSwapPostEffect(ParseSwapPostEffect(std::string(value)));
++      }
++    });
++  });
+ 
+   // Register GPU MMIO handlers
+   // GPU registers are at 0x7FC80000-0x7FCFFFFF
+@@ -179,6 +199,10 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
+ }
+ 
+ void GraphicsSystem::Shutdown() {
++  {
++    std::lock_guard lock(g_live_command_processor_mutex);  // [JTH]
++    if (g_live_command_processor == command_processor_.get()) g_live_command_processor = nullptr;
++  }
+   if (command_processor_) {
+     command_processor_->Shutdown();
+     command_processor_.reset();
+diff --git a/src/graphics/util/draw.cpp b/src/graphics/util/draw.cpp
+index 305380e9..c8f5c65e 100644
+--- a/src/graphics/util/draw.cpp
++++ b/src/graphics/util/draw.cpp
+@@ -31,6 +31,20 @@ REXCVAR_DEFINE_BOOL(half_pixel_offset, true, "GPU", "Enable half pixel offset");
+ REXCVAR_DEFINE_BOOL(resolve_resolution_scale_fill_half_pixel_offset, true, "GPU",
+                     "Fill half pixel offset during resolution scale resolve");
+ 
++// [Jurassic: The Hunted Recompiled] Games commonly draw the first-person weapon in a compressed
++// near depth range (viewport Z scale <= viewmodel_depth_range, Z offset 0) so it never clips into
++// walls. Scaling those draws' viewport XY by viewmodel_xy_scale renders them as if with a different
++// field of view: an app that widens the world FOV can keep the weapon at its original size by
++// setting tan(new FOV / 2) / tan(original FOV / 2). 1 = off.
++REXCVAR_DEFINE_DOUBLE(viewmodel_xy_scale, 1.0, "GPU",
++                      "Viewport XY scale for draws in the near (first-person) depth range")
++    .range(0.1, 10.0)
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++REXCVAR_DEFINE_DOUBLE(viewmodel_depth_range, 0.02, "GPU",
++                      "Largest viewport Z scale (with Z offset 0) treated as first-person draws")
++    .range(0.0, 1.0)
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++
+ // Very prominent in 545407F2.
+ // DEFINE_bool(
+ //     resolve_resolution_scale_fill_half_pixel_offset, true,
+@@ -313,6 +327,13 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t draw_resolution_scal
+   };
+   float offset_z =
+       pa_cl_vte_cntl.vport_z_offset_ena ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_ZOFFSET) : 0.0f;
++  // [Jurassic: The Hunted Recompiled] First-person draws (see viewmodel_xy_scale) - applied to
++  // ndc_scale below, not here, so the host viewport keeps its size and clipping happens at the real
++  // screen edges even when the draw is shrunk.
++  float viewmodel_scale = 1.0f;
++  if (offset_z == 0.0f && scale_z > 0.0f && scale_z <= float(REXCVAR_GET(viewmodel_depth_range))) {
++    viewmodel_scale = float(REXCVAR_GET(viewmodel_xy_scale));
++  }
+   // Calculate all the integer.0 or integer.5 offsetting exactly at full
+   // precision, separately so it can be used in other integer calculations
+   // without double rounding if needed.
+@@ -520,6 +541,12 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t draw_resolution_scal
+   viewport_info_out.z_min = z_min;
+   viewport_info_out.z_max = z_max;
+ 
++  // [JTH] The guest viewport center is clip-space XY = 0 in both branches above, so scaling the
++  // clip-space XY scales the draw around the viewport center.
++  if (viewmodel_scale != 1.0f) {
++    ndc_scale[0] *= viewmodel_scale;
++    ndc_scale[1] *= viewmodel_scale;
++  }
+   if (origin_bottom_left) {
+     ndc_scale[1] = -ndc_scale[1];
+     ndc_offset[1] = -ndc_offset[1];
+diff --git a/src/ui/d3d12/d3d12_presenter.cpp b/src/ui/d3d12/d3d12_presenter.cpp
+index 306118ee..c27ea5e6 100644
+--- a/src/ui/d3d12/d3d12_presenter.cpp
++++ b/src/ui/d3d12/d3d12_presenter.cpp
+@@ -10,6 +10,7 @@
+  */
+ 
+ #include <algorithm>
++#include <chrono>
+ #include <climits>
+ #include <cmath>
+ #include <memory>
+@@ -33,6 +34,12 @@
+ REXCVAR_DEFINE_BOOL(d3d12_allow_variable_refresh_rate_and_tearing, true, "UI/D3D12",
+                     "Allow variable refresh rate and tearing");
+ 
++// [Jurassic: The Hunted Recompiled] Vertical sync for the host swap chain. Off keeps the upstream
++// behavior (present immediately, tearing allowed).
++REXCVAR_DEFINE_BOOL(present_vsync, false, "UI/D3D12",
++                    "Wait for the display's vertical blank when presenting (no tearing; limits "
++                    "presents to the refresh rate)");
++
+ namespace rex::ui::d3d12 {
+ 
+ // Generated with `xb buildshaders`.
+@@ -1155,9 +1162,29 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
+   // fullscreen is ever used in, the allow tearing flag must not be passed in
+   // fullscreen, but DXGI fullscreen is largely unneeded with the flip
+   // presentation model used in Direct3D 12).
++  // [Jurassic: The Hunted Recompiled] With present_vsync, wait for vertical blank instead: sync
++  // interval 1, no tearing, and no RESTART (which would discard queued frames instead of waiting,
++  // so presents wouldn't be throttled to the refresh rate).
++  const bool vsync = REXCVAR_GET(present_vsync);
+   HRESULT present_result = paint_context_.swap_chain->Present(
+-      0, DXGI_PRESENT_RESTART |
+-             (paint_context_.swap_chain_allows_tearing ? DXGI_PRESENT_ALLOW_TEARING : 0));
++      vsync ? 1 : 0,
++      vsync ? 0
++            : DXGI_PRESENT_RESTART |
++                  (paint_context_.swap_chain_allows_tearing ? DXGI_PRESENT_ALLOW_TEARING : 0));
++  {
++    // Debug aid: how often the host actually presents (not the guest frame rate).
++    static uint64_t presents = 0;
++    static auto window_start = std::chrono::steady_clock::now();
++    ++presents;
++    const auto now = std::chrono::steady_clock::now();
++    const double seconds = std::chrono::duration<double>(now - window_start).count();
++    if (seconds >= 5.0) {
++      REXLOG_DEBUG("D3D12Presenter: {:.1f} presents/s (vsync {})", presents / seconds,
++                   vsync ? "on" : "off");
++      presents = 0;
++      window_start = now;
++    }
++  }
+   // Even if presentation has failed, work might have been enqueued anyway
+   // internally before the failure according to Jesse Natalie from the DirectX
+   // Discord server.
+diff --git a/src/ui/imgui_drawer.cpp b/src/ui/imgui_drawer.cpp
+index f270f3c0..57a62a9a 100644
+--- a/src/ui/imgui_drawer.cpp
++++ b/src/ui/imgui_drawer.cpp
+@@ -436,7 +436,16 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
+   // it now if needed.
+   DetachIfLastDialogRemoved();
+ 
+-  if (!dialogs_.empty()) {
++  // [Jurassic: The Hunted Recompiled] Only dialogs that want it keep the window repainting
++  // continuously; otherwise an always-present idle dialog makes the host present as fast as it can.
++  bool continuous = false;
++  for (ImGuiDialog* dialog : dialogs_) {
++    if (dialog->WantsContinuousRepaint()) {
++      continuous = true;
++      break;
++    }
++  }
++  if (continuous) {
+     // Repaint (and handle input) continuously if still active. In detached mode
+     // there is no presenter; the app drives repaint via its own present loop.
+     if (presenter_) {
+diff --git a/src/ui/presenter.cpp b/src/ui/presenter.cpp
+index 7360ed98..9293e49b 100644
+--- a/src/ui/presenter.cpp
++++ b/src/ui/presenter.cpp
+@@ -12,6 +12,7 @@
+ #include <algorithm>
+ #include <atomic>
+ #include <cctype>
++#include <mutex>
+ #include <utility>
+ 
+ #include <rex/assert.h>
+@@ -44,14 +45,14 @@ REXCVAR_DEFINE_INT32(present_safe_area_y, 90, "UI/Presenter",
+ REXCVAR_DEFINE_STRING(present_effect, "bilinear", "UI/Presenter",
+                       "Guest output effect: bilinear, cas, fsr, fsr2, fsr3")
+     .allowed({"bilinear", "cas", "fsr", "fsr2", "fsr3"})
+-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);  // [JTH] applied live
+ 
+ REXCVAR_DEFINE_DOUBLE(present_cas_additional_sharpness,
+                       rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessDefault,
+                       "UI/Presenter", "Additional CAS sharpness in [0, 1]")
+     .range(rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMin,
+            rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMax)
+-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);  // [JTH] applied live
+ 
+ REXCVAR_DEFINE_INT32(present_fsr_max_upsampling_passes,
+                      rex::ui::Presenter::GuestOutputPaintConfig::kFsrMaxUpscalingPassesMax,
+@@ -64,7 +65,7 @@ REXCVAR_DEFINE_DOUBLE(present_fsr_sharpness_reduction,
+                       "UI/Presenter", "FSR RCAS sharpness reduction in stops")
+     .range(rex::ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionMin,
+            rex::ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionMax)
+-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);  // [JTH] applied live
+ 
+ REXCVAR_DEFINE_STRING(
+     present_fsr_quality_mode, "auto", "UI/Presenter",
+@@ -251,6 +252,10 @@ void LogTemporalFsrQualityModeInputLimitOnce() {
+ }
+ #endif  // defined(REX_HAS_FIDELITYFX_SDK)
+ 
++// [Jurassic: The Hunted Recompiled] The presenter whose output settings follow the present_*
++// settings at runtime (set/cleared on the UI thread).
++std::atomic<rex::ui::Presenter*> g_live_presenter{nullptr};
++
+ GuestOutputPaintConfig BuildGuestOutputPaintConfigFromCVar() {
+   GuestOutputPaintConfig config;
+   GuestOutputPaintConfig::Effect parsed_effect = ParsePresentEffect(REXCVAR_GET(present_effect));
+@@ -287,6 +292,10 @@ Presenter::~Presenter() {
+   // it if needed.
+   assert_false(is_executing_ui_drawers_);
+ 
++  // [JTH] Stop following the present_* settings.
++  Presenter* self = this;
++  g_live_presenter.compare_exchange_strong(self, nullptr);
++
+ #if REX_PLATFORM_WIN32
+   if (dxgi_ui_tick_thread_.joinable()) {
+     {
+@@ -649,6 +658,20 @@ bool Presenter::RefreshGuestOutput(
+   return is_active;
+ }
+ 
++void Presenter::ReloadGuestOutputPaintConfigFromCVars() {
++  // [Jurassic: The Hunted Recompiled] Change callbacks run on whichever thread changed the
++  // setting (with the settings registry locked), so apply on the UI thread, and only if this
++  // presenter still exists by then.
++  if (!window_) {
++    return;
++  }
++  window_->app_context().CallInUIThreadDeferred([] {
++    if (Presenter* presenter = g_live_presenter.load()) {
++      presenter->SetGuestOutputPaintConfigFromUIThread(BuildGuestOutputPaintConfigFromCVar());
++    }
++  });
++}
++
+ void Presenter::SetGuestOutputPaintConfigFromUIThread(const GuestOutputPaintConfig& new_config) {
+   // For simplicity, this may be called externally repeatedly.
+   // Lock the mutex only when something has been modified, and also don't
+@@ -791,6 +814,19 @@ bool Presenter::InitializeCommonSurfaceIndependent() {
+     guest_output_paint_config_ = BuildGuestOutputPaintConfigFromCVar();
+   }
+ 
++  // [Jurassic: The Hunted Recompiled] Follow runtime changes of the output effect settings.
++  g_live_presenter.store(this);
++  static std::once_flag callbacks_registered;
++  std::call_once(callbacks_registered, [] {
++    for (const char* name : {"present_effect", "present_fsr_sharpness_reduction",
++                             "present_cas_additional_sharpness"})
++      rex::cvar::RegisterChangeCallback(name, [](std::string_view, std::string_view) {
++        if (Presenter* presenter = g_live_presenter.load()) {
++          presenter->ReloadGuestOutputPaintConfigFromCVars();
++        }
++      });
++  });
++
+   // Initialize UI frame rate limiting.
+ #if REX_PLATFORM_WIN32
+   dxgi_ui_tick_thread_ = std::thread(&Presenter::DXGIUITickThread, this);
