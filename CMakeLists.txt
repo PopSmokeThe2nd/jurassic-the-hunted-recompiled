@@ -67,6 +67,7 @@ if(WIN32)
     add_executable(launcher WIN32
         launcher/main.cpp
         launcher/iso_install.cpp
+        launcher/prepare.cpp
         launcher/launcher.rc
         src/settings_file.cpp
         ${IMGUI_DIR}/imgui.cpp

@@ -36,6 +36,7 @@
 #include "backends/imgui_impl_win32.h"
 #include "imgui.h"
 #include "iso_install.h"
+#include "prepare.h"
 #include "settings_file.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
@@ -1057,7 +1058,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
   ImGui_ImplWin32_EnableDpiAwareness();
 
   // Arguments.
-  std::wstring tab_arg, install_iso;
+  std::wstring tab_arg, install_iso, game_arg;
+  bool prepare = false;
   {
     int argc = 0;
     LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
@@ -1067,9 +1069,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
       if (a == L"--tab") tab_arg = next();
       else if (a == L"--game-dir") g_app.game_dir_override = next();
       else if (a == L"--install-iso") install_iso = next();
+      else if (a == L"--prepare") prepare = true;
+      else if (a == L"--game") game_arg = next();
     }
     LocalFree(argv);
   }
+
+  // Windowless setup for other launchers (launcher/prepare.h): install and exit, no window.
+  if (prepare) return jth::launcher::RunPrepare(game_arg, ExeDir());
 
   g_app.exe_dir = ExeDir();
   g_app.config_file = g_app.exe_dir / "jurassichunted.toml";
