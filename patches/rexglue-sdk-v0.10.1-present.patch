@@ -1,3 +1,23 @@
+diff --git a/include/rex/input/touchpad.h b/include/rex/input/touchpad.h
+new file mode 100644
+index 00000000..5ff7faf3
+--- /dev/null
++++ b/include/rex/input/touchpad.h
+@@ -0,0 +1,14 @@
++// [Jurassic: The Hunted Recompiled] The PlayStation touchpad click on its own. In the XInput state
++// it shares the Guide bit with the PS / Xbox button (and only shows there with --guide_button), so
++// the app can't tell it apart; this counter can.
++
++#pragma once
++
++#include <cstdint>
++
++namespace rex::input {
++
++// How many times a controller's touchpad has been clicked since the program started.
++uint32_t TouchpadClickCount();
++
++}  // namespace rex::input
 diff --git a/include/rex/ui/imgui_dialog.h b/include/rex/ui/imgui_dialog.h
 index a7ab6b30..7e9cff9f 100644
 --- a/include/rex/ui/imgui_dialog.h
@@ -158,6 +178,47 @@ index 305380e9..c8f5c65e 100644
    if (origin_bottom_left) {
      ndc_scale[1] = -ndc_scale[1];
      ndc_offset[1] = -ndc_offset[1];
+diff --git a/src/input/sdl/sdl_input_driver.cpp b/src/input/sdl/sdl_input_driver.cpp
+index 57f65c4e..692ca3bc 100644
+--- a/src/input/sdl/sdl_input_driver.cpp
++++ b/src/input/sdl/sdl_input_driver.cpp
+@@ -20,12 +20,25 @@
+ #include <rex/cvar.h>
+ #include <rex/input/flags.h>
+ #include <rex/input/sdl/sdl_input_driver.h>
++#include <rex/input/touchpad.h>
+ #include <rex/logging.h>
+ #include <rex/ui/virtual_key.h>
+ 
++#include <atomic>
++
+ REXCVAR_DEFINE_STRING(hid_mappings_file, "gamecontrollerdb.txt", "Input",
+                       "Path to SDL gamecontroller mappings file");
+ 
++// [Jurassic: The Hunted Recompiled] Touchpad clicks, counted on their own (rex/input/touchpad.h).
++namespace rex::input {
++namespace {
++std::atomic<uint32_t> g_touchpad_clicks{0};
++}  // namespace
++uint32_t TouchpadClickCount() {
++  return g_touchpad_clicks.load(std::memory_order_relaxed);
++}
++}  // namespace rex::input
++
+ namespace rex::input::sdl {
+ 
+ namespace {
+@@ -730,6 +743,10 @@ void SDLInputDriver::OnControllerDeviceButtonChangedLocked(const SDL_Event& even
+     // The pad can be removed between the event being posted and drained.
+     return;
+   }
++  // [Jurassic: The Hunted Recompiled] The touchpad click, counted apart from the Guide bit below.
++  if (event.gbutton.button == SDL_GAMEPAD_BUTTON_TOUCHPAD && event.gbutton.down) {
++    g_touchpad_clicks.fetch_add(1, std::memory_order_relaxed);
++  }
+   auto& controller = controllers_.at(*idx);
+ 
+   uint16_t xbuttons = controller.state.gamepad.buttons;
 diff --git a/src/ui/d3d12/d3d12_presenter.cpp b/src/ui/d3d12/d3d12_presenter.cpp
 index 306118ee..c27ea5e6 100644
 --- a/src/ui/d3d12/d3d12_presenter.cpp

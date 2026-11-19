@@ -26,7 +26,14 @@ REXCVAR_DEFINE_BOOL(cheat_one_hit_kill, false, "Cheats",
 REXCVAR_DEFINE_BOOL(cheat_infinite_grenades, false, "Cheats",
                     "Grenades are topped back up to 5 after each throw")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+REXCVAR_DEFINE_DOUBLE(cheat_super_speed, 1.0, "Cheats",
+                      "Player movement speed multiplier: 1 = normal, up to 4 (walking, running "
+                      "and sprinting)")
+    .range(1.0, 4.0)
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 REXCVAR_DEFINE_BOOL(log_damage, false, "Debug", "Log every damage calculation (developer tool)");
+REXCVAR_DEFINE_BOOL(log_ammo, false, "Debug",
+                    "Log the weapon in hand's ammo fields whenever they change (developer tool)");
 
 namespace jth::cheats {
 namespace {
@@ -38,6 +45,7 @@ constexpr uint32_t kVtActorPropertiesSP = 0x8202FB1C;  // ActorProperties_SPBase
 constexpr uint32_t kVtInventory = 0x820067F4;          // wsInventory
 constexpr uint32_t kVtAdrenalin = 0x82034164;          // gpAdrenalin
 constexpr uint32_t kVtGpManager = 0x8202C14C;          // gpManager
+constexpr uint32_t kVtModeReloadPlasmaGun = 0x82030BCC;  // the plasma gun's recharge
 constexpr uint32_t kAdrenalinMaxAddr = 0x827121D8;
 constexpr uint32_t kItemTypeFirearm = 49;
 
@@ -81,6 +89,24 @@ void ApplyCheats(uint32_t controller) {
   const uint32_t actor = g.u32(controller + 0x1C);
   if (!Guest::heap_ptr(actor) || g.u32(actor) != kVtActor) return;
   g_player_actor.store(actor, std::memory_order_relaxed);
+
+  if (REXCVAR_GET(log_ammo)) {
+    // The item in hand: type, and the words around its magazine fields (+612 capacity, +616
+    // loaded), logged when anything there changes.
+    const uint32_t inv = g.u32(actor + 0x198);
+    const uint32_t item = Guest::heap_ptr(inv) ? g.u32(inv + 152) : 0;
+    if (Guest::heap_ptr(item)) {
+      static uint32_t last_item = 0;
+      static std::string last;
+      std::string words;
+      for (uint32_t off = 592; off < 660; off += 4) words += fmt::format(" +{}={:X}", off, g.u32(item + off));
+      if (item != last_item || words != last) {
+        last_item = item;
+        last = words;
+        REXLOG_INFO("ammo: item {:08X} vtable {:08X} type {}{}", item, g.u32(item), g.u32(item + 16), words);
+      }
+    }
+  }
 
   const bool god = REXCVAR_GET(cheat_god_mode);
   const bool ammo = REXCVAR_GET(cheat_infinite_ammo);
@@ -200,6 +226,51 @@ uint32_t Attacker(const jth::cheats::Guest& g, uint32_t info) {
   return g.u32(src + 16) == 16 ? g.u32(src + 212) : src;
 }
 }  // namespace
+
+// csControllerActor's movement step (sub_82241E10) at 0x82242054, right after it loads the
+// controller's input speed modifier (+264, what the script command scSetInputSpeedModifier sets)
+// into f0; the movement input (+76..+84) is multiplied by it next. r31 = the controller, which
+// for the player is csControllerActorPlayer. Super speed scales the player's modifier.
+void JthMoveSpeed(PPCRegister& r31, PPCRegister& f0) {
+  using namespace jth::cheats;
+  const double speed = REXCVAR_GET(cheat_super_speed);
+  if (!(speed > 1.0)) return;
+  Guest g{rex::system::kernel_memory()->virtual_membase()};
+  if (!Guest::heap_ptr(r31.u32) || g.u32(r31.u32) != kVtPlayerController) return;
+  f0.f64 *= std::min(speed, 4.0);
+}
+
+// wsModeReloadPlasmaGun's update (sub_82373A50) after the prologue: r31 = the mode (+4 its item,
+// +64 bullet_load_time, +68 charge in seconds, +72 full charge). Each shot spends one load time of
+// charge and the update sets the loaded rounds to charge / load time, so for infinite ammo the
+// charge of the player's plasma gun is kept full.
+void JthPlasmaCharge(PPCRegister& r31) {
+  using namespace jth::cheats;
+  const bool log = REXCVAR_GET(log_ammo);
+  if (!REXCVAR_GET(cheat_infinite_ammo) && !log) return;
+  Guest g{rex::system::kernel_memory()->virtual_membase()};
+  const uint32_t mode = r31.u32;
+  if (!Guest::heap_ptr(mode) || g.u32(mode) != kVtModeReloadPlasmaGun) return;
+  if (log) {
+    static uint32_t last_mode = 0;
+    if (mode != last_mode) {
+      last_mode = mode;
+      REXLOG_INFO("ammo: plasma recharge {:08X} item {:08X} load time {:.2f} charge {:.2f} / {:.2f}",
+                  mode, g.u32(mode + 4), g.f32(mode + 64), g.f32(mode + 68), g.f32(mode + 72));
+    }
+  }
+  if (!REXCVAR_GET(cheat_infinite_ammo)) return;
+  const uint32_t actor = g_player_actor.load(std::memory_order_relaxed);
+  if (!Guest::heap_ptr(actor)) return;
+  const uint32_t inv = g.u32(actor + 0x198);
+  if (!Guest::heap_ptr(inv) || g.u32(inv) != kVtInventory) return;
+  if (g.u32(inv + 152) != g.u32(mode + 4)) return;  // only the gun in the player's hands
+  const float full = g.f32(mode + 72), charge = g.f32(mode + 68);
+  if (full > 0.0f && full < 10000.0f && charge < full) {
+    if (REXCVAR_GET(log_ammo)) REXLOG_INFO("ammo: plasma charge {:.2f} -> {:.2f}", charge, full);
+    g.set_f32(mode + 68, full);
+  }
+}
 
 // ActorProperties_SPBase apply-damage (sub_82368F98) at 0x823692E4: r27 = attacker (or 0),
 // r29 = victim's ActorProperties (+4 max health, +8 health, +192 its actor), f30 = final damage.

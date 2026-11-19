@@ -3,17 +3,21 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <string>
 
 #include <imgui.h>
 #include <rex/cvar.h>
+#include <rex/input/input_system.h>
+#include <rex/input/touchpad.h>
 #include <rex/logging.h>
 #include <rex/system/kernel_state.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/keybinds.h>
 
+#include "framerate.h"
 #include "graphics_settings.h"
 #include "pc_input.h"
 #include "settings_file.h"
@@ -36,9 +40,19 @@ REXCVAR_DECLARE(bool, cheat_infinite_ammo);
 REXCVAR_DECLARE(bool, cheat_infinite_adrenaline);
 REXCVAR_DECLARE(bool, cheat_infinite_grenades);  // defined in cheats.cpp
 REXCVAR_DECLARE(bool, cheat_one_hit_kill);
+REXCVAR_DECLARE(double, cheat_super_speed);
+
+namespace {
+// Super speed choices (cheat_super_speed, 1-4).
+constexpr double kSpeeds[] = {1.0, 1.5, 2.0, 2.5, 3.0, 4.0};
+const char* kSpeedLabels[] = {"Off (normal)", "1.5x", "2x", "2.5x", "3x", "4x"};
+constexpr int kSpeedCount = 6;
+}  // namespace
 REXCVAR_DECLARE(std::string, upscaler);     // defined in graphics_settings.cpp
 REXCVAR_DECLARE(double, upscaler_sharpness);
 REXCVAR_DECLARE(std::string, antialiasing);
+REXCVAR_DECLARE(int32_t, framerate);  // defined in framerate.cpp
+REXCVAR_DECLARE(bool, show_fps);
 REXCVAR_DECLARE(double, hdr_max_brightening);  // defined in graphics_settings.cpp
 REXCVAR_DECLARE(bool, weapon_wheel);            // defined in weapon_wheel.cpp
 
@@ -64,6 +78,36 @@ float LoadBeFloat(const uint8_t* p) {
 }
 
 std::atomic<bool> g_panel_open{false};
+rex::input::InputSystem* g_input = nullptr;  // set once at startup
+using rex::X_RESULT;                         // X_ERROR_SUCCESS
+
+// The controller as ImGui gamepad navigation: D-pad / left stick move, A (cross) activates, B
+// (circle) backs out, LB / RB tweak faster.
+void FeedGamepad(ImGuiIO& io, const rex::input::X_INPUT_GAMEPAD& g) {
+  using namespace rex::input;
+  auto key = [&](ImGuiKey k, uint16_t bit) { io.AddKeyEvent(k, (g.buttons & bit) != 0); };
+  key(ImGuiKey_GamepadFaceDown, X_INPUT_GAMEPAD_A);
+  key(ImGuiKey_GamepadFaceRight, X_INPUT_GAMEPAD_B);
+  key(ImGuiKey_GamepadFaceLeft, X_INPUT_GAMEPAD_X);
+  key(ImGuiKey_GamepadFaceUp, X_INPUT_GAMEPAD_Y);
+  key(ImGuiKey_GamepadDpadUp, X_INPUT_GAMEPAD_DPAD_UP);
+  key(ImGuiKey_GamepadDpadDown, X_INPUT_GAMEPAD_DPAD_DOWN);
+  key(ImGuiKey_GamepadDpadLeft, X_INPUT_GAMEPAD_DPAD_LEFT);
+  key(ImGuiKey_GamepadDpadRight, X_INPUT_GAMEPAD_DPAD_RIGHT);
+  key(ImGuiKey_GamepadL1, X_INPUT_GAMEPAD_LEFT_SHOULDER);
+  key(ImGuiKey_GamepadR1, X_INPUT_GAMEPAD_RIGHT_SHOULDER);
+  key(ImGuiKey_GamepadStart, X_INPUT_GAMEPAD_START);
+  key(ImGuiKey_GamepadBack, X_INPUT_GAMEPAD_BACK);
+  auto stick = [&](ImGuiKey neg, ImGuiKey pos, int16_t raw) {
+    constexpr float kDead = 0.3f;
+    const float v = std::clamp(raw / 32767.0f, -1.0f, 1.0f);
+    const float a = std::max(0.0f, (std::fabs(v) - kDead) / (1 - kDead));
+    io.AddKeyAnalogEvent(pos, v > kDead, v > 0 ? a : 0.0f);
+    io.AddKeyAnalogEvent(neg, v < -kDead, v < 0 ? a : 0.0f);
+  };
+  stick(ImGuiKey_GamepadLStickLeft, ImGuiKey_GamepadLStickRight, g.thumb_lx);
+  stick(ImGuiKey_GamepadLStickDown, ImGuiKey_GamepadLStickUp, g.thumb_ly);  // XInput: up is +
+}
 
 // The dialog exists only while the panel is open: while any ImGui dialog is registered, the SDK
 // repaints the window continuously (hundreds of presents per second even at a 30 fps cap).
@@ -72,6 +116,10 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
   PcOptionsDialog(rex::ui::ImGuiDrawer* drawer, std::filesystem::path config_path)
       : ImGuiDialog(drawer), config_path_(std::move(config_path)) {
     g_panel_open.store(true);
+    if (g_input) {
+      g_input->AddUIInputBlocker();  // the game reads a neutral pad while the panel is open
+      blocking_ = true;
+    }
   }
   ~PcOptionsDialog() override;
 
@@ -88,6 +136,12 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
   }
 
   void OnDraw(ImGuiIO& io) override {
+    if (g_input) {
+      rex::input::X_INPUT_STATE pad{};
+      if (g_input->GetStateForUI(0, &pad) == X_ERROR_SUCCESS) FeedGamepad(io, pad.gamepad);
+      io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+      io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
+    }
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
                             ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
     bool open = true;
@@ -184,6 +238,53 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
         jth::gfx::SetAntiAliasing(kAaModes[aa]);
         Save();
       }
+      // Frame rate limit and FPS counter, live (framerate.cpp).
+      ImGui::TextUnformatted("Frame rate");
+      static const int kFps[] = {30, 60, 120, 144, 165, 185, 240};
+      static const char* kFpsLabels[] = {"30 (original)", "60", "120", "144", "165", "185", "240"};
+      int fps_index = 0;
+      for (int i = 0; i < 7; ++i)
+        if (REXCVAR_GET(framerate) == kFps[i]) fps_index = i;
+      ImGui::SetNextItemWidth(slider_w);
+      if (ImGui::Combo("##framerate", &fps_index, kFpsLabels, 7)) {
+        jth::fps::SetFramerate(kFps[fps_index]);
+        Save();
+      }
+      ImGui::SameLine();
+      bool show_fps = REXCVAR_GET(show_fps);
+      if (ImGui::Checkbox("Show FPS counter", &show_fps)) {
+        jth::fps::ShowFpsCounter(show_fps);
+        Save();
+      }
+      // Display mode: the SDK's window settings, which it applies live.
+      ImGui::TextUnformatted("Display mode");
+      static const char* kModes[] = {"Borderless", "Fullscreen (exclusive)", "Windowed"};
+      const bool full = rex::cvar::GetFlagByName("fullscreen") == "true";
+      const bool exclusive = rex::cvar::GetFlagByName("fullscreen_exclusive") == "true";
+      int mode = !full ? 2 : exclusive ? 1 : 0;
+      ImGui::SetNextItemWidth(slider_w);
+      if (ImGui::Combo("##display", &mode, kModes, 3)) {
+        rex::cvar::SetFlagByName("fullscreen_exclusive", mode == 1 ? "true" : "false");
+        rex::cvar::SetFlagByName("fullscreen", mode == 2 ? "false" : "true");
+        Save();
+      }
+      if (mode == 2) {
+        static const int kSizes[][2] = {{0, 0}, {1280, 720}, {1600, 900}, {1920, 1080}, {2560, 1440}};
+        static const char* kSizeLabels[] = {"Automatic", "1280 x 720", "1600 x 900", "1920 x 1080",
+                                            "2560 x 1440"};
+        const int ww = std::atoi(rex::cvar::GetFlagByName("window_width").c_str());
+        const int wh = std::atoi(rex::cvar::GetFlagByName("window_height").c_str());
+        int size = 0;
+        for (int i = 1; i < 5; ++i)
+          if (ww == kSizes[i][0] && wh == kSizes[i][1]) size = i;
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9.0f);
+        if (ImGui::Combo("##window_size", &size, kSizeLabels, 5)) {
+          rex::cvar::SetFlagByName("window_width", std::to_string(kSizes[size][0]));
+          rex::cvar::SetFlagByName("window_height", std::to_string(kSizes[size][1]));
+          Save();
+        }
+      }
       ImGui::TextDisabled("3D scene rendered at %s. Internal resolution is set in the launcher;",
                           jth::gfx::InternalResolutionText().c_str());
       ImGui::TextDisabled("above your display's, it also smooths edges (supersampling).");
@@ -223,10 +324,24 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
       cheat_box("Infinite grenades", "cheat_infinite_grenades",
                 REXCVAR_GET(cheat_infinite_grenades));
       cheat_box("One hit kill", "cheat_one_hit_kill", REXCVAR_GET(cheat_one_hit_kill));
+      // Super speed: the player's movement speed multiplier (cheats.cpp, JthMoveSpeed).
+      ImGui::TextUnformatted("Super speed");
+      ImGui::SameLine();
+      int speed = 0;
+      for (int i = 0; i < kSpeedCount; ++i)
+        if (std::abs(REXCVAR_GET(cheat_super_speed) - kSpeeds[i]) < 0.01) speed = i;
+      ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9.0f);
+      if (ImGui::Combo("##super_speed", &speed, kSpeedLabels, kSpeedCount)) {
+        char buf[16];
+        std::snprintf(buf, sizeof(buf), "%.2f", kSpeeds[speed]);
+        rex::cvar::SetFlagByName("cheat_super_speed", buf);
+        Save();
+      }
 
       ImGui::Spacing();
       ImGui::Separator();
-      ImGui::TextDisabled("F2 closes this panel. Changes are saved right away.");
+      ImGui::TextDisabled("F2 (or a PlayStation controller's touchpad) closes this panel.");
+      ImGui::TextDisabled("Controller: D-pad to move, A / cross to change. Saved right away.");
     }
     ImGui::End();
     if (!open) Close();
@@ -241,7 +356,8 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
   // Writes everything the panel controls (the launcher reads the same keys).
   void Save() {
     using jth::settings::Quote;
-    char sens[32], sharp[32], hdr[32];
+    char sens[32], sharp[32], hdr[32], speed[32];
+    std::snprintf(speed, sizeof(speed), "%.2f", REXCVAR_GET(cheat_super_speed));
     std::snprintf(sens, sizeof(sens), "%.3f", REXCVAR_GET(mouse_sensitivity));
     std::snprintf(sharp, sizeof(sharp), "%.2f", REXCVAR_GET(upscaler_sharpness));
     std::snprintf(hdr, sizeof(hdr), "%.2f", REXCVAR_GET(hdr_max_brightening));
@@ -255,13 +371,20 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
              {"upscaler", Quote(REXCVAR_GET(upscaler))},
              {"upscaler_sharpness", sharp},
              {"antialiasing", Quote(REXCVAR_GET(antialiasing))},
+             {"framerate", std::to_string(REXCVAR_GET(framerate))},
+             {"show_fps", flag(REXCVAR_GET(show_fps))},
+             {"fullscreen", rex::cvar::GetFlagByName("fullscreen")},
+             {"fullscreen_exclusive", rex::cvar::GetFlagByName("fullscreen_exclusive")},
+             {"window_width", rex::cvar::GetFlagByName("window_width")},
+             {"window_height", rex::cvar::GetFlagByName("window_height")},
              {"hdr_max_brightening", hdr},
              {"weapon_wheel", flag(REXCVAR_GET(weapon_wheel))},
              {"cheat_god_mode", flag(REXCVAR_GET(cheat_god_mode))},
              {"cheat_infinite_ammo", flag(REXCVAR_GET(cheat_infinite_ammo))},
              {"cheat_infinite_adrenaline", flag(REXCVAR_GET(cheat_infinite_adrenaline))},
              {"cheat_infinite_grenades", flag(REXCVAR_GET(cheat_infinite_grenades))},
-             {"cheat_one_hit_kill", flag(REXCVAR_GET(cheat_one_hit_kill))}}))
+             {"cheat_one_hit_kill", flag(REXCVAR_GET(cheat_one_hit_kill))},
+             {"cheat_super_speed", speed}}))
       REXLOG_DEBUG("PC options saved to {}", config_path_.string());
     else
       REXLOG_WARN("PC options: couldn't save to {}", config_path_.string());
@@ -269,6 +392,7 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
 
   std::filesystem::path config_path_;
   bool dirty_ = false;
+  bool blocking_ = false;  // holds the SDK's UI input blocker
 };
 
 // UI thread only. Non-owning: an open dialog deletes itself when closed.
@@ -278,6 +402,7 @@ std::filesystem::path g_config_path;
 
 PcOptionsDialog::~PcOptionsDialog() {
   if (g_dialog == this) g_dialog = nullptr;
+  if (blocking_ && g_input) g_input->RemoveUIInputBlocker();
 }
 
 }  // namespace
@@ -311,6 +436,16 @@ void DestroyPcOptions() {
 
 bool PcOptionsOpen() {
   return g_panel_open.load(std::memory_order_relaxed);
+}
+
+void SetInputSystem(rex::input::InputSystem* input) { g_input = input; }
+
+void PollTouchpad() {
+  static uint32_t last = rex::input::TouchpadClickCount();
+  const uint32_t now = rex::input::TouchpadClickCount();
+  if (now == last) return;
+  last = now;
+  jth::pc::RunOnUiThread([] { TogglePanel(); });
 }
 
 }  // namespace jth::opts

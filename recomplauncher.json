@@ -44,13 +44,26 @@
   },
   "settings": [
     {
-      "id": "window", "label": "Window", "group": "Display",
-      "help": "Fullscreen fills your screen. Windowed opens the game in a window.",
+      "id": "window", "label": "Display mode", "group": "Display",
+      "help": "Borderless fills your screen in a window without edges (quick to switch out of). Fullscreen takes over the display. Windowed opens the game in a window.",
       "choices": [
-        { "label": "Fullscreen", "set": { "fullscreen": "true" } },
-        { "label": "Windowed", "set": { "fullscreen": "false" } }
+        { "label": "Borderless", "set": { "fullscreen": "true", "fullscreen_exclusive": "false" } },
+        { "label": "Fullscreen", "set": { "fullscreen": "true", "fullscreen_exclusive": "true" } },
+        { "label": "Windowed", "set": { "fullscreen": "false", "fullscreen_exclusive": "false" } }
       ],
-      "defaults": { "fullscreen": "true" }
+      "defaults": { "fullscreen": "true", "fullscreen_exclusive": "false" }
+    },
+    {
+      "id": "window_size", "label": "Window size", "group": "Display", "advanced": true,
+      "help": "The window's size in Windowed mode. Automatic picks one that fits your screen.",
+      "choices": [
+        { "label": "Automatic", "set": { "window_width": "0", "window_height": "0" } },
+        { "label": "1280 x 720", "set": { "window_width": "1280", "window_height": "720" } },
+        { "label": "1600 x 900", "set": { "window_width": "1600", "window_height": "900" } },
+        { "label": "1920 x 1080", "set": { "window_width": "1920", "window_height": "1080" } },
+        { "label": "2560 x 1440", "set": { "window_width": "2560", "window_height": "1440" } }
+      ],
+      "defaults": { "window_width": "0", "window_height": "0" }
     },
     {
       "id": "resolution", "label": "Resolution", "group": "Display",
@@ -111,6 +124,15 @@
         { "label": "On", "set": { "vertical_sync": "true" } }
       ],
       "defaults": { "vertical_sync": "false" }
+    },
+    {
+      "id": "show_fps", "label": "FPS counter", "group": "Display",
+      "help": "Shows the game's frame rate in the top left corner.",
+      "choices": [
+        { "label": "Off", "set": { "show_fps": "false" } },
+        { "label": "On", "set": { "show_fps": "true" } }
+      ],
+      "defaults": { "show_fps": "false" }
     },
     {
       "id": "fov", "label": "Field of view", "group": "Display",
@@ -207,6 +229,19 @@
         { "label": "On", "set": { "cheat_one_hit_kill": "true" } }
       ],
       "defaults": { "cheat_one_hit_kill": "false" }
+    },
+    {
+      "id": "super_speed", "label": "Super speed", "group": "Cheats",
+      "help": "Walk, run and sprint faster.",
+      "choices": [
+        { "label": "Off", "set": { "cheat_super_speed": "1.00" } },
+        { "label": "1.5x", "set": { "cheat_super_speed": "1.50" } },
+        { "label": "2x", "set": { "cheat_super_speed": "2.00" } },
+        { "label": "2.5x", "set": { "cheat_super_speed": "2.50" } },
+        { "label": "3x", "set": { "cheat_super_speed": "3.00" } },
+        { "label": "4x", "set": { "cheat_super_speed": "4.00" } }
+      ],
+      "defaults": { "cheat_super_speed": "1.00" }
     }
   ],
   "actions": [

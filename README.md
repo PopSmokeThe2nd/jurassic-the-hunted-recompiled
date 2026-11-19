@@ -113,13 +113,15 @@ icon, extracted from `default.xex` with `tools/extract_title_icon.py` and conver
 `JurassicTheHunted.exe` (built next to `jurassichunted.exe`) is the front end: the title art as a
 slowly panning background, the logo, and four tabs.
 
-- **GRAPHICS**: internal resolution and anti-aliasing (one row), upscaler (FSR etc.), frame rate,
-  vsync and field of view, with a live hint of what they'll do on your display.
+- **GRAPHICS**: internal resolution and anti-aliasing (one row), upscaler (FSR etc.), frame rate
+  with vsync and the FPS counter, display mode (borderless, exclusive fullscreen or windowed, with
+  a window size) and field of view, with a live hint of what they'll do on your display.
 - **CONTROLS**: every action with its PC key, Xbox button and PlayStation button. Keys come from
   the `[bind]` section of `jurassichunted.toml`, so rebinds show up here. **In-game button icons**
   (Xbox / PlayStation) picks which icons the game's own prompts use (see
   [Button prompts](#button-prompts)).
-- **CHEATS**: god mode, infinite ammo, infinite adrenaline.
+- **CHEATS**: god mode, infinite ammo, infinite adrenaline, infinite grenades, one hit kill and
+  super speed (1.5x to 4x).
 - **GAME ISO**: pick your Xbox 360 disc image. The launcher checks it's Jurassic: The Hunted
   (title `41560870`) and that its `default.xex` is byte-identical to the one this build was
   recompiled from (SHA-256), then copies the 2,683 game files (~3 GB, about 20 s from an SSD) into
@@ -165,8 +167,9 @@ gives it:
   An existing `game\default.xex` counts as set up, so a player who installed with this launcher
   isn't asked again.
 - **Play** starts `jurassichunted.exe`, which finds `game\` by itself as always.
-- **Settings:** resolution, upscaling, sharpness, anti-aliasing, frame rate, V-Sync, FOV, window
-  mode, mouse sensitivity, the weapon wheel, button icons and the cheats, written to
+- **Settings:** resolution, upscaling, sharpness, anti-aliasing, frame rate, V-Sync, the FPS
+  counter, FOV, display mode and window size, mouse sensitivity, the weapon wheel, button icons and
+  the cheats (super speed as a choice of multipliers), written to
   `jurassichunted.toml` with the same keys this launcher and the F2 panel use. On the first start
   the button icons follow the controller plugged in (`{pad}`: Xbox or PlayStation). Also: where saves
   and logs are (for its backups and crash reports), and buttons to open them or clear the shader
@@ -278,8 +281,13 @@ animation already run on real elapsed time. Above 30, the game turns off the emu
 `0x824BA09C`, `src/framerate.cpp`) paces frames to the chosen rate with a high-resolution
 waitable timer. Measured: 60 → 60.0 fps, 144 → 144.0 fps, game clock at 1.000× real time and the
 intro's timing unchanged. 240 is a limit, not a guarantee: the recompiled game is CPU-bound at
-roughly 200–210 fps on a Ryzen 7 5800X. The setting needs a restart; an explicit `vsync` in the
-settings file or on the command line wins over it.
+roughly 200–210 fps on a Ryzen 7 5800X. It also switches live from the F2 panel (a change
+notification on `framerate` turns the emulated vblank wait off or back on); an explicit `vsync`
+in the settings file or on the command line wins over it.
+
+**FPS counter** (`show_fps`, launcher: GRAPHICS, or F2): the game's own frame rate in the top left
+corner, counted at the game's frame present (`JthFramePace`) and updated twice a second. It is drawn
+with each game frame and asks for no extra repaints, so it doesn't change the rate it measures.
 
 **Vsync** (`vertical_sync = true`, launcher: GRAPHICS → Vsync) presents each frame on the display's
 refresh with no tearing, so the frame rate can't exceed the refresh rate (measured 163 fps at a
@@ -317,18 +325,30 @@ Press **F2** in game for the PC Options panel:
   resolution, which needs a restart and so stays in the launcher.
 - **Anti-aliasing**: off, FXAA or FXAA (high quality), live (see
   [Anti-aliasing](#anti-aliasing-and-why-theres-no-msaa-option)).
+- **Frame rate** (30–240) and the **FPS counter**.
+- **Display mode**: borderless, fullscreen (exclusive) or windowed, plus the window size when
+  windowed. These are the SDK's own `fullscreen`, `fullscreen_exclusive`, `window_width` and
+  `window_height` settings, which it applies to the window live.
 - **Auto-exposure brightening limit** (see
   [Auto-exposure](#auto-exposure-the-white-glare-in-the-lost-castaways)).
-- **Cheats**.
+- **Cheats**, including the super speed multiplier.
 
 Everything applies instantly and is saved to `jurassichunted.toml` as soon as you finish a change
 (sliders when released, checkboxes and choices right away, and again when the panel closes), so
 nothing is lost if the game is closed with the panel open. Only the panel's own keys are touched
 (`fov`, `weapon_fov_fixed`, `mouse_sensitivity`, `weapon_wheel`, `upscaler`,
-`upscaler_sharpness`, `antialiasing`, `hdr_max_brightening`, `cheat_*`); other settings and
-comments are kept, and the launcher reads the same keys. Earlier builds saved only FOV and
-sensitivity, and only when the panel was closed. While the panel is open, keyboard/mouse game
-input is paused and the cursor is free.
+`upscaler_sharpness`, `antialiasing`, `framerate`, `show_fps`, `fullscreen`,
+`fullscreen_exclusive`, `window_width`, `window_height`, `hdr_max_brightening`, `cheat_*`); other
+settings and comments are kept, and the launcher reads the same keys. Earlier builds saved only
+FOV and sensitivity, and only when the panel was closed. While the panel is open, game input is
+paused and the cursor is free.
+
+**With a controller:** clicking the touchpad of a PlayStation controller (DualShock 4 or DualSense)
+opens and closes the panel, like F2. The D-pad or left stick moves between options and A / cross
+changes them; the game reads a neutral controller meanwhile (the SDK's UI input blocker). The touchpad
+click normally shares the Guide bit with the PS button, so the SDK patch counts touchpad clicks on
+their own (`rex::input::TouchpadClickCount`, from SDL's touchpad button) and the GUI update polls
+that count.
 
 You can also set `fov = 100` in `jurassichunted.toml` or pass `--fov=100`.
 
@@ -355,12 +375,14 @@ space.
 
 Toggle in the launcher's CHEATS tab or the **F2** PC Options panel, or set `cheat_god_mode`,
 `cheat_infinite_ammo`, `cheat_infinite_adrenaline`, `cheat_infinite_grenades`,
-`cheat_one_hit_kill` to `true` in `jurassichunted.toml` / on the command line. Implemented in
-`src/cheats.cpp`; every object is checked against its known vtable before anything is written.
+`cheat_one_hit_kill` to `true` and `cheat_super_speed` to a multiplier (`1` = off, up to `4`) in
+`jurassichunted.toml` / on the command line. Implemented in `src/cheats.cpp`; every object is
+checked against its known vtable before anything is written.
 
 | Cheat | How |
 |---|---|
-| Infinite ammo | keeps the current firearm's magazine (item +616) at capacity (+612) |
+| Infinite ammo | keeps the current firearm's magazine (item +616) at capacity (+612); for the plasma gun, also its charge (see below) |
+| Super speed | multiplies the player's input speed modifier where the movement step reads it (see below) |
 | God mode | sets the game's own `Invincible` flag (Actor +228) and refills ActorProperties health |
 | Infinite adrenaline | keeps `gpAdrenalin`'s meter (+24) at max |
 | Infinite grenades | twice a second, tops the frag grenades back up to 5 through the game's own Lua (`Inventory:GetBulletCount` / `AddBullet` with `models/weapons/grenade_frag_d/grenade_frag_d.xml`, as `weapons.lua` adds them) |
@@ -377,6 +399,24 @@ player (a bullet's shooter is at bullet +212) and whose victim isn't:
 Verified: with the cheat off, a frag grenade throw leaves 4 of 5; with it on the count stays at 5.
 A raptor in L15 dies from the first shot ("damage (animal) ... -> one hit kill" with
 `--log_damage=true`).
+
+**The plasma gun** (the reward for collecting the gun parts) has no reserve and doesn't reload from
+one: `wsModeReloadPlasmaGun` (vtable `0x82030BCC`) keeps a charge in seconds (mode +68, full at
++72 = magazine capacity × `bullet_load_time`, 5 × 2 s), each shot spends one load time of it and
+time refills it, and its update (`sub_82373A50`) sets the loaded rounds to charge ÷ load time
+every frame. So topping up the magazine alone was undone a frame later and the count still went
+down. A hook at the start of that update (`JthPlasmaCharge`, `0x82373A64`) keeps the charge of the
+player's gun in hand full while infinite ammo is on. With `--log_ammo=true` the log shows the
+gun's recharge state ("ammo: plasma recharge ... load time 2.00 charge 10.00 / 10.00") and each
+refill.
+
+**Super speed:** `csControllerActor`'s movement step (`sub_82241E10`) multiplies the movement input
+(controller +76/+80/+84) by the controller's input speed modifier (+264, what the script command
+`scSetInputSpeedModifier` sets) before handing it to the animation-driven locomotion. A hook right
+after it loads that modifier (`JthMoveSpeed`, `0x82242054`) multiplies it for the player's
+controller (`csControllerActorPlayer`) only. Sprinting goes through the same step, so it's scaled
+too, and the character controller still handles collisions. Measured top speed in L08c (player
+position at Actor +0x50/+0x58): 3.5 m/s normally, 7.0 at 2x, about 11 at 3x and 14 at 4x.
 
 ## Controls
 
@@ -668,7 +708,9 @@ the command syntax: `tap a`, `hold lb+rb 500`, `stick l 0 1 2000`, `key space`, 
   toast) no longer make the window repaint continuously; live `present_effect` / sharpness
   changes (`Presenter::ReloadGuestOutputPaintConfigFromCVars`, used by the F2 panel);
   `viewmodel_xy_scale` / `viewmodel_depth_range` in `graphics/util/draw.cpp` (fixed weapon size);
-  and live `swap_post_effect` changes in `graphics/graphics_system.cpp` (FXAA in the F2 panel).
+  live `swap_post_effect` changes in `graphics/graphics_system.cpp` (FXAA in the F2 panel); and
+  `rex::input::TouchpadClickCount()` (`include/rex/input/touchpad.h`, counted in
+  `input/sdl/sdl_input_driver.cpp`), so a PlayStation controller's touchpad can open the F2 panel.
 - **GPU plugin settings** (`resolution_scale`, `anisotropic_override`, `vsync`, ...) live in
   `rexgpu-xenos.dll`, which registers them only when it loads, after `OnPreSetup`. Setting them
   there is silently rejected; hand them over through the environment (`REX_<NAME>`, applied when

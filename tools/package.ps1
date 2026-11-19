@@ -95,14 +95,17 @@ AFTER THAT
 
 SETTINGS (in the launcher)
   GRAPHICS  internal resolution (up to 4K), anti-aliasing (FXAA), AMD FSR upscaling,
-            frame rate (30-240 fps), vsync, field of view
+            frame rate (30-240 fps), vsync, FPS counter, display mode (borderless,
+            fullscreen or windowed, with a window size), field of view
   CONTROLS  every action with its PC key, Xbox button and PlayStation button,
             "In-game button icons": Xbox, PlayStation or keyboard keys in the game's prompts,
             and the weapon wheel on/off
-  CHEATS    god mode, infinite ammo, infinite adrenaline, infinite grenades, one hit kill
-  In game, press F2 for field of view, mouse sensitivity, the weapon wheel, AMD FSR
-  upscaling, anti-aliasing, the auto-exposure limit and cheats. Changes there apply
-  instantly and are saved right away.
+  CHEATS    god mode, infinite ammo, infinite adrenaline, infinite grenades, one hit kill,
+            super speed (1.5x to 4x)
+  In game, press F2 (or click a PlayStation controller's touchpad) for field of view,
+  mouse sensitivity, the weapon wheel, AMD FSR upscaling, anti-aliasing, frame rate,
+  the FPS counter, display mode, the auto-exposure limit and cheats. Changes there apply
+  instantly and are saved right away. With a controller: D-pad to move, A / cross to change.
   (The game has no adjustable MSAA; a higher internal resolution also smooths edges.)
 
 CONTROLS

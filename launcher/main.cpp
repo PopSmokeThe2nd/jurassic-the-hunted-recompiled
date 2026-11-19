@@ -50,7 +50,8 @@ namespace {
 constexpr float kWinW = 1280, kWinH = 720;
 constexpr float kLogoW = 460;
 // Kept low and short so the pterosaurs in the middle band of the art stay visible above it.
-constexpr float kPanelX = 190, kPanelY = 260, kPanelW = 900, kPanelH = 445;
+constexpr float kPanelX = 190, kPanelY = 232, kPanelW = 900, kPanelH = 470;
+constexpr float kFooterH = 104;  // divider + status line + PLAY, at the bottom of the panel
 
 // ---- colors ----
 const ImVec4 kGreen(0.55f, 0.76f, 0.08f, 1.0f);
@@ -222,10 +223,26 @@ const char* kPromptValues[] = {"xbox", "playstation", "keyboard"};
 const char* kPromptLabels[] = {"Xbox", "PlayStation", "Keyboard & mouse"};
 constexpr int kPromptCount = 3;
 
+// Display mode (the SDK's fullscreen / fullscreen_exclusive) and window size (window_width /
+// window_height, 0 = automatic).
+const char* kDisplayLabels[] = {"Borderless", "Fullscreen (exclusive)", "Windowed"};
+constexpr int kDisplayCount = 3;
+constexpr int kWinSizes[][2] = {{0, 0}, {1280, 720}, {1600, 900}, {1920, 1080}, {2560, 1440}};
+const char* kWinSizeLabels[] = {"Automatic", "1280 x 720", "1600 x 900", "1920 x 1080",
+                                "2560 x 1440"};
+constexpr int kWinSizeCount = 5;
+
+// Super speed cheat (cheat_super_speed: the player's movement speed multiplier).
+constexpr double kSpeedValues[] = {1.0, 1.5, 2.0, 2.5, 3.0, 4.0};
+const char* kSpeedLabels[] = {"Off", "1.5x", "2x", "2.5x", "3x", "4x"};
+constexpr int kSpeedCount = 6;
+
 struct Settings {
   int res = 0, aa = 0, upscaler = 0, fov = 86, fps = 0, prompts = 0;
-  bool vsync = false, weapon_wheel = true;
+  int display = 0, win_size = 0;  // kDisplayLabels, kWinSizes
+  bool vsync = false, weapon_wheel = true, show_fps = false;
   bool god = false, ammo = false, adren = false, grenades = false, one_hit = false;
+  int speed = 0;  // kSpeedValues
 
   void Load(const fs::path& file) {
     auto kv = jth::settings::ReadTopLevel(file);
@@ -251,12 +268,31 @@ struct Settings {
       return it != kv.end() && it->second == "true";
     };
     vsync = flag("vertical_sync");
+    show_fps = flag("show_fps");
+    {
+      auto it = kv.find("fullscreen");
+      const bool full = it == kv.end() || it->second != "false";  // the SDK starts full screen
+      display = !full ? 2 : flag("fullscreen_exclusive") ? 1 : 0;
+      auto num = [&](const char* key) {
+        auto v = kv.find(key);
+        return v == kv.end() ? 0 : std::atoi(v->second.c_str());
+      };
+      const int ww = num("window_width"), wh = num("window_height");
+      win_size = 0;
+      for (int i = 1; i < kWinSizeCount; ++i)
+        if (ww == kWinSizes[i][0] && wh == kWinSizes[i][1]) win_size = i;
+    }
     if (auto it = kv.find("weapon_wheel"); it != kv.end()) weapon_wheel = it->second != "false";
     god = flag("cheat_god_mode");
     ammo = flag("cheat_infinite_ammo");
     adren = flag("cheat_infinite_adrenaline");
     grenades = flag("cheat_infinite_grenades");
     one_hit = flag("cheat_one_hit_kill");
+    if (auto it = kv.find("cheat_super_speed"); it != kv.end()) {
+      const double v = std::atof(it->second.c_str());  // nearest offered value
+      for (int i = 0; i < kSpeedCount; ++i)
+        if (std::abs(kSpeedValues[i] - v) < std::abs(kSpeedValues[speed] - v)) speed = i;
+    }
   }
 
   bool Save(const fs::path& file) const {
@@ -268,13 +304,25 @@ struct Settings {
                {"fov", std::to_string(fov)},
                {"framerate", std::to_string(kFpsValues[fps])},
                {"vertical_sync", vsync ? "true" : "false"},
+               {"show_fps", show_fps ? "true" : "false"},
+               {"fullscreen", display == 2 ? "false" : "true"},
+               {"fullscreen_exclusive", display == 1 ? "true" : "false"},
+               {"window_width", std::to_string(kWinSizes[win_size][0])},
+               {"window_height", std::to_string(kWinSizes[win_size][1])},
                {"button_prompts", Quote(kPromptValues[prompts])},
                {"weapon_wheel", weapon_wheel ? "true" : "false"},
                {"cheat_god_mode", god ? "true" : "false"},
                {"cheat_infinite_ammo", ammo ? "true" : "false"},
                {"cheat_infinite_adrenaline", adren ? "true" : "false"},
                {"cheat_infinite_grenades", grenades ? "true" : "false"},
-               {"cheat_one_hit_kill", one_hit ? "true" : "false"}});
+               {"cheat_one_hit_kill", one_hit ? "true" : "false"},
+               {"cheat_super_speed", SpeedText(kSpeedValues[speed])}});
+  }
+
+  static std::string SpeedText(double v) {
+    char buf[16];
+    std::snprintf(buf, sizeof(buf), "%.2f", v);
+    return buf;
   }
 };
 
@@ -475,10 +523,20 @@ void DrawGraphicsTab() {
   }
   hint_line("Game default 86\xC2\xB0. Also adjustable in game with F2.");
 
+  // Frame rate, with Vsync and the FPS counter on the same row.
   Label("Frame rate");
   ImGui::SameLine(col2);
-  ImGui::SetNextItemWidth(w2);
+  ImGui::SetNextItemWidth(res_w);
   if (ImGui::Combo("##fps", &s.fps, kFpsLabels, kFpsCount)) g_app.SaveSettings();
+  ImGui::SameLine(col2 + res_w + S(22));
+  if (ImGui::Checkbox("Vsync", &s.vsync)) g_app.SaveSettings();
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("%s", "On: no tearing; frames wait for your display's refresh.\nOff: lowest "
+                            "input delay; fast motion may tear.");
+  ImGui::SameLine(0, S(28));
+  if (ImGui::Checkbox("Show FPS", &s.show_fps)) g_app.SaveSettings();
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("The game's frame rate in the top left corner. Also in game with F2.");
   const int hz = DisplayRefreshHz();
   if (s.fps == 0)
     hint_line("The game's original frame rate.");
@@ -490,15 +548,25 @@ void DrawGraphicsTab() {
   else
     hint_line("Game speed stays correct at any frame rate. Your display: %d Hz.", hz);
 
-  Label("Vsync");
+  // Display mode, with the window size (windowed only) on the same row.
+  Label("Display mode");
   ImGui::SameLine(col2);
-  if (ImGui::Checkbox("##vsync", &s.vsync)) g_app.SaveSettings();
-  ImGui::SameLine();
+  ImGui::SetNextItemWidth(res_w);
+  if (ImGui::Combo("##display", &s.display, kDisplayLabels, kDisplayCount)) g_app.SaveSettings();
+  ImGui::SameLine(col2 + res_w + S(22));
   ImGui::AlignTextToFramePadding();
-  ImGui::PushStyleColor(ImGuiCol_Text, kMuted);
-  ImGui::TextUnformatted(s.vsync ? "On: no tearing; frames wait for your display's refresh."
-                                 : "Off: lowest input delay; fast motion may tear.");
-  ImGui::PopStyleColor();
+  ImGui::BeginDisabled(s.display != 2);
+  ImGui::TextUnformatted("Window size");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(col2 + w2 - ImGui::GetCursorPosX());
+  if (ImGui::Combo("##winsize", &s.win_size, kWinSizeLabels, kWinSizeCount)) g_app.SaveSettings();
+  ImGui::EndDisabled();
+  if (s.display == 0)
+    hint_line("Fills your screen; switching to other apps is instant. Also in game with F2.");
+  else if (s.display == 1)
+    hint_line("Takes over the display; switching to other apps is slower. Also in game with F2.");
+  else
+    hint_line("A window you can move around, at the size picked. Also in game with F2.");
   ImGui::PopStyleVar(2);
 }
 
@@ -791,13 +859,31 @@ void DrawControlsTab() {
 
 void DrawCheatsTab() {
   auto& s = g_app.settings;
+  // Slightly tighter rows so all six cheats and the hint fit without scrolling.
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, S(4)));
   Cheat("God mode", &s.god, "You can't be hurt.", false);
   Cheat("Infinite ammo", &s.ammo, "The magazine never runs out; no reloading.", false);
   Cheat("Infinite adrenaline", &s.adren, "The slow-motion meter stays full.", false);
   Cheat("Infinite grenades", &s.grenades, "Grenades are topped back up to 5 after each throw.",
         false);
   Cheat("One hit kill", &s.one_hit, "Anything you hurt dies from one hit.", false);
-  ImGui::Spacing();
+  // Super speed: a choice of multipliers rather than on / off. The name lines up with the
+  // checkbox labels above; the choice sits between it and the description column.
+  ImGui::PushFont(g_app.heading, 20.0f);
+  ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetFrameHeight() +
+                       ImGui::GetStyle().ItemInnerSpacing.x);
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextUnformatted("Super speed");
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(S(280) - ImGui::GetCursorPosX() - S(8));
+  if (ImGui::Combo("##super_speed", &s.speed, kSpeedLabels, kSpeedCount)) g_app.SaveSettings();
+  ImGui::PopFont();
+  ImGui::SameLine(S(280));
+  ImGui::AlignTextToFramePadding();
+  ImGui::PushStyleColor(ImGuiCol_Text, kMuted);
+  ImGui::TextUnformatted("Walk, run and sprint faster.");
+  ImGui::PopStyleColor();
+  ImGui::PopStyleVar();
   Hint("Cheats can also be switched on and off in game with F2.");
 }
 
@@ -966,7 +1052,8 @@ void DrawUI() {
     ImGui::Separator();
 
     // NavFlattened: keyboard navigation (Tab / arrows) flows between the tabs, settings and PLAY.
-    ImGui::BeginChild("##content", ImVec2(0, S(kPanelH) - S(150)), ImGuiChildFlags_NavFlattened,
+    ImGui::BeginChild("##content", ImVec2(0, ImGui::GetContentRegionAvail().y - S(kFooterH)),
+                      ImGuiChildFlags_NavFlattened,
                       ImGuiWindowFlags_NoBackground);  // scrolls if a tab overflows
     ImGui::Dummy(ImVec2(0, S(6)));
     ImGui::PushFont(g_app.body, 17.0f);
@@ -979,14 +1066,17 @@ void DrawUI() {
     ImGui::PopFont();
     ImGui::EndChild();
 
-    // Footer: status + PLAY.
+    // Footer: a divider, then the status line and PLAY, centred together in the space below it.
     ImGui::Separator();
     const bool installing = snap.running;
     const bool have_exe = fs::exists(g_app.game_exe);
     const bool can_play = g_app.game.found && g_app.game.exact_version && have_exe && !installing;
-    ImGui::SetCursorPosY(S(kPanelH) - S(78));
+    const ImVec2 play_size = S(220, 60);
+    const float row_top = ImGui::GetCursorPosY();
+    const float play_y = row_top + std::max(0.0f, (ImGui::GetContentRegionAvail().y - play_size.y) * 0.5f);
+    const float play_x = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - play_size.x;
     ImGui::PushFont(g_app.body, 17.0f);
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + S(18));
+    ImGui::SetCursorPosY(play_y + (play_size.y - ImGui::GetTextLineHeight()) * 0.5f);
     if (!g_app.save_error.empty()) {
       StatusDot(kOrange);
       ImGui::TextUnformatted(g_app.save_error.c_str());
@@ -1005,8 +1095,7 @@ void DrawUI() {
     }
     ImGui::PopFont();
 
-    ImGui::SameLine();
-    ImGui::SetCursorPos(ImVec2(S(kPanelW) - S(240), S(kPanelH) - S(78)));
+    ImGui::SetCursorPos(ImVec2(play_x, play_y));
     ImGui::BeginDisabled(!can_play);
     ImGui::PushStyleColor(ImGuiCol_Button, kGreen);
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kGreenHover);
@@ -1014,7 +1103,7 @@ void DrawUI() {
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.04f, 0.07f, 0.02f, 1));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, S(8));
     ImGui::PushFont(g_app.heading, 30.0f);
-    if (ImGui::Button("PLAY", S(220, 60))) LaunchGame();
+    if (ImGui::Button("PLAY", play_size)) LaunchGame();
     ImGui::PopFont();
     ImGui::PopStyleVar();
     ImGui::PopStyleColor(4);

@@ -19,6 +19,9 @@
 namespace rex::ui {
 class ImGuiDrawer;
 }
+namespace rex::input {
+class InputSystem;
+}
 
 namespace jth::opts {
 
@@ -28,6 +31,16 @@ void DestroyPcOptions();
 
 // True while the panel is open (keyboard/mouse game input is paused and the cursor is freed).
 bool PcOptionsOpen();
+
+// Opens or closes the panel (UI thread).
+void TogglePanel();
+
+// The controller input, for the panel: while it's open the game reads a neutral pad (the SDK's UI
+// input blocker) and the panel is driven with the controller (D-pad / left stick, A / cross).
+void SetInputSystem(rex::input::InputSystem* input);
+
+// Game thread, once per frame: the PlayStation touchpad toggles the panel, like F2.
+void PollTouchpad();
 
 }  // namespace jth::opts
 

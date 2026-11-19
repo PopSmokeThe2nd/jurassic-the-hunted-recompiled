@@ -70,11 +70,13 @@ class JurassicHuntedApp : public rex::ReXApp {
   // F2: PC Options panel (FOV and mouse sensitivity sliders).
   void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {
     jth::opts::CreatePcOptions(drawer, config_path_for_options_);
+    jth::fps::CreateFpsCounter(drawer);
     // Weapon wheel; pictures of your own go in a "weapon_images" folder next to the game.
     jth::wheel::Create(drawer, immediate_drawer(),
                        config_path_for_options_.parent_path() / "weapon_images");
   }
   void OnShutdown() override {
+    jth::fps::DestroyFpsCounter();
     jth::wheel::Destroy();
     jth::opts::DestroyPcOptions();
   }
@@ -107,6 +109,7 @@ class JurassicHuntedApp : public rex::ReXApp {
     // synthetic devices merge into player 1, so any of them can be used at any time.
     config.input_factory = [](bool tool_mode) -> std::unique_ptr<rex::system::IInputSystem> {
       auto input = rex::input::CreateDefaultInputSystem(tool_mode);
+      jth::opts::SetInputSystem(input.get());  // F2 panel: controller navigation, input blocker
       if (!tool_mode) {
         if (auto pc = jth::pc::CreatePcInputDriver())
           input->AddDriver(std::move(pc));

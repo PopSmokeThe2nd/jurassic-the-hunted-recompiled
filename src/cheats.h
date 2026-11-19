@@ -5,6 +5,10 @@
 //   cheat_infinite_adrenaline adrenaline meter stays full
 //   cheat_infinite_grenades   grenades topped back up to 5 (Lua: Inventory:AddBullet)
 //   cheat_one_hit_kill        damage the player deals is lethal (hook in the damage method)
+//   cheat_super_speed         player movement speed multiplier, 1-4 (hook in the movement step)
+//
+// Infinite ammo also covers the plasma gun, whose rounds come from a recharging charge rather
+// than a magazine (hook in its recharge update, JthPlasmaCharge).
 //
 // Applied once per frame from the player's look update (JthMouseLook), on the game thread that
 // runs player logic. Every object is checked against its known vtable before anything is written.
@@ -16,6 +20,7 @@
 //   ActorProperties[_SPBase]                     +4 float max health, +8 float health
 //   wsInventory (vtable 0x820067F4)              +152 current item
 //   firearm item (type +16 == 49)                +612 magazine capacity, +616 rounds loaded
+//   wsModeReloadPlasmaGun (vtable 0x82030BCC)    +4 item, +64 load time, +68 charge, +72 full
 //   gpManager (vtable 0x8202C14C)                +4 -> {count, capacity, items[]} incl. gpAdrenalin
 //   gpAdrenalin (vtable 0x82034164)              +24 float meter; max at global 0x827121D8
 
@@ -44,3 +49,9 @@ void JthDamage(PPCRegister& r27, PPCRegister& r29, PPCRegister& f30);
 void JthDamageBase(PPCRegister& r3, PPCRegister& r4);
 // Animal::Damage (sub_822EF018 @ 0x822EF114): r3 = the animal (health at +412), r4 = damage info.
 void JthDamageAnimal(PPCRegister& r3, PPCRegister& r4);
+// csControllerActor's movement step (sub_82241E10 @ 0x82242054): r31 = the controller, f0 = its
+// input speed modifier, about to scale the movement input. Super speed multiplies the player's.
+void JthMoveSpeed(PPCRegister& r31, PPCRegister& f0);
+// The plasma gun's recharge update (wsModeReloadPlasmaGun, sub_82373A50 @ 0x82373A64): r31 = the
+// mode. Infinite ammo keeps its charge full (the gun's rounds are derived from it every frame).
+void JthPlasmaCharge(PPCRegister& r31);
