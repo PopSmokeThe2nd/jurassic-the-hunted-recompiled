@@ -240,7 +240,8 @@ constexpr int kSpeedCount = 6;
 struct Settings {
   int res = 0, aa = 0, upscaler = 0, fov = 86, fps = 0, prompts = 0;
   int display = 0, win_size = 0;  // kDisplayLabels, kWinSizes
-  bool vsync = false, weapon_wheel = true, show_fps = false;
+  bool vsync = false, weapon_wheel = true, show_fps = false, hide_hud = false;
+  bool toggle_sprint = false;
   bool god = false, ammo = false, adren = false, grenades = false, one_hit = false;
   int speed = 0;  // kSpeedValues
 
@@ -269,6 +270,8 @@ struct Settings {
     };
     vsync = flag("vertical_sync");
     show_fps = flag("show_fps");
+    hide_hud = flag("hide_hud");
+    toggle_sprint = flag("toggle_sprint");
     {
       auto it = kv.find("fullscreen");
       const bool full = it == kv.end() || it->second != "false";  // the SDK starts full screen
@@ -305,6 +308,8 @@ struct Settings {
                {"framerate", std::to_string(kFpsValues[fps])},
                {"vertical_sync", vsync ? "true" : "false"},
                {"show_fps", show_fps ? "true" : "false"},
+               {"hide_hud", hide_hud ? "true" : "false"},
+               {"toggle_sprint", toggle_sprint ? "true" : "false"},
                {"fullscreen", display == 2 ? "false" : "true"},
                {"fullscreen_exclusive", display == 1 ? "true" : "false"},
                {"window_width", std::to_string(kWinSizes[win_size][0])},
@@ -537,6 +542,11 @@ void DrawGraphicsTab() {
   if (ImGui::Checkbox("Show FPS", &s.show_fps)) g_app.SaveSettings();
   if (ImGui::IsItemHovered())
     ImGui::SetTooltip("The game's frame rate in the top left corner. Also in game with F2.");
+  ImGui::SameLine(0, S(28));
+  if (ImGui::Checkbox("Hide HUD", &s.hide_hud)) g_app.SaveSettings();
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("%s", "Just the game: no crosshair, ammo, messages, subtitles or button "
+                            "prompts.\nAlso in game with F2.");
   const int hz = DisplayRefreshHz();
   if (s.fps == 0)
     hint_line("The game's original frame rate.");
@@ -842,18 +852,24 @@ void DrawControlsTab() {
   // (Keyboard & mouse shows the keys bound above; the mouse also works in menus.)
   if (ImGui::IsItemHovered()) ImGui::SetTooltip("Menu and tutorial prompts. Applies when the game starts.");
 
-  // Weapon wheel on the same row.
+  // Weapon wheel and toggle sprint on the same row.
   ImGui::SameLine(S(240) + S(200) + S(30));
   if (ImGui::Checkbox("Weapon wheel", &s.weapon_wheel)) g_app.SaveSettings();
-  ImGui::SameLine();
-  ImGui::AlignTextToFramePadding();
-  ImGui::PushStyleColor(ImGuiCol_Text, kMuted);
   const std::string cw = Bind("change_weapon", "Q");
   const std::string key = KeyLabel(cw.substr(0, cw.find(',')));
-  const std::string wheel_hint = s.weapon_wheel ? "Hold " + key + ", point with the mouse. 1-9 pick a weapon."
-                                                : "Off: " + key + " switches to the next weapon.";
-  ImGui::TextUnformatted(wheel_hint.c_str());
-  ImGui::PopStyleColor();
+  if (ImGui::IsItemHovered()) {
+    const std::string tip =
+        s.weapon_wheel ? "Hold " + key + " and point with the mouse, or hold Y / triangle and point "
+                         "with the left stick.\nA tap still switches to the next weapon; 1-9 pick "
+                         "a weapon."
+                       : "Off: " + key + " / Y / triangle switch to the next weapon.";
+    ImGui::SetTooltip("%s", tip.c_str());
+  }
+  ImGui::SameLine(0, S(28));
+  if (ImGui::Checkbox("Toggle sprint", &s.toggle_sprint)) g_app.SaveSettings();
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("%s", "Press sprint (left stick click or Shift) once instead of holding it.\n"
+                            "It stops when you stop moving or press it again.");
   ImGui::PopStyleVar();
 }
 

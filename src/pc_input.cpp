@@ -101,6 +101,7 @@ constexpr int64_t kMotionWindowNs = 150'000'000;
 void NoteMotion(float dx, float dy);
 std::array<std::atomic<bool>, 256> g_test_keys{};
 std::atomic<int> g_wheel_steps{0};
+std::atomic<uint16_t> g_kb_buttons{0};  // the buttons the keyboard reported last (KeyboardButtons)
 std::atomic<rex::ui::Window*> g_window{nullptr};
 
 int64_t NowNs() {
@@ -453,6 +454,7 @@ class PcInputDriver final : public rex::input::InputDriver,
 
     std::memset(out, 0, sizeof(*out));
     out->gamepad.buttons = buttons;
+    g_kb_buttons.store(buttons, std::memory_order_relaxed);
     // In menus the mouse buttons click (menu_mouse.cpp) instead of firing/aiming.
     const bool menu = jth::menu_mouse::InMenu();
     out->gamepad.left_trigger =
@@ -694,6 +696,8 @@ void SetTestKey(int vk, bool down) {
 void RunOnUiThread(std::function<void()> fn) {
   if (rex::ui::Window* w = g_window.load()) w->app_context().CallInUIThreadDeferred(std::move(fn));
 }
+
+uint16_t KeyboardButtons() { return g_kb_buttons.load(std::memory_order_relaxed); }
 
 bool GameplayLookActive() {
   return NowNs() - g_last_look_ns.load(std::memory_order_relaxed) <

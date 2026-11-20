@@ -25,7 +25,8 @@
 #include "weapon_art.h"
 
 REXCVAR_DEFINE_BOOL(weapon_wheel, true, "Controls",
-                    "Hold the change-weapon key for a weapon wheel; number keys 1-9 pick a weapon")
+                    "Hold the change-weapon key (Q, or Y / triangle on a controller) for a weapon "
+                    "wheel; number keys 1-9 pick a weapon")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 REXCVAR_DEFINE_BOOL(log_weapon_wheel, false, "Debug",
                     "Log the inventory's weapon slots and each weapon switch (developer tool)");
@@ -35,6 +36,7 @@ REXCVAR_DEFINE_INT32(weapon_wheel_direction, 0, "Debug",
     .range(-1, 1)
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 REXCVAR_DECLARE(double, mouse_sensitivity);  // defined in pc_input.cpp
+REXCVAR_DECLARE(std::string, button_prompts);  // defined in button_prompts.cpp
 
 namespace jth::wheel {
 namespace {
@@ -100,6 +102,7 @@ std::atomic<int64_t> g_last_frame_ns{0};
 // change-weapon key held but not yet long enough to open the wheel: mouse movement then already
 // aims the pointer (and still turns the camera, in case the press turns out to be a tap).
 std::atomic<bool> g_open{false};
+std::atomic<bool> g_by_pad{false};  // opened with a controller (hints)
 std::atomic<bool> g_pending{false};
 std::atomic<int> g_highlight{-1};
 std::mutex g_cursor_mutex;
@@ -312,11 +315,14 @@ class WheelDialog final : public rex::ui::ImGuiDialog {
     // Center: the highlighted weapon, and how to use the wheel.
     if (hl >= 0 && hl < n) text_centered(ImVec2(c.x, c.y - font * 0.5f), font,
                                          IM_COL32(255, 220, 140, 255), entries[hl].name);
+    const bool pad = g_by_pad.load();
+    const bool ps = REXCVAR_GET(button_prompts) == "playstation";
     text_centered(ImVec2(c.x, c.y + font * 0.7f), small_font * 0.9f, IM_COL32(200, 200, 200, 230),
-                  "Release to switch");
+                  pad ? (ps ? "Release triangle to switch" : "Release Y to switch")
+                      : "Release to switch");
     text_centered(ImVec2(c.x, c.y + font * 1.5f), small_font * 0.9f, IM_COL32(200, 200, 200, 230),
-                  "Right-click: cancel");
-    // Pointer (mouse direction).
+                  pad ? (ps ? "Circle: cancel" : "B: cancel") : "Right-click: cancel");
+    // Pointer (mouse or stick direction).
     float cx, cy;
     {
       std::lock_guard lock(g_cursor_mutex);
@@ -549,8 +555,9 @@ bool Tracking() {
   return g_open.load(std::memory_order_relaxed) || g_pending.load(std::memory_order_relaxed);
 }
 
-void Open() {
+void Open(bool by_pad) {
   if (g_open.exchange(true)) return;
+  g_by_pad.store(by_pad);
   g_pending.store(false);
   // Start on the weapon in hand, or where the mouse already points if it moved since the key
   // went down (a quick press-and-flick).
@@ -618,6 +625,25 @@ void AddCursor(float dx, float dy) {
     y = g_cursor_y;
   }
   if (!g_open.load()) return;  // still pending: Open() picks the starting sector
+  int n;
+  {
+    std::lock_guard lock(g_mutex);
+    n = int(g_entries.size());
+  }
+  g_highlight.store(PickSector(x, y, n, g_highlight.load()));
+}
+
+void SetStick(float sx, float sy) {
+  // The stick's position is the pointer (screen y grows downward); near the center the
+  // highlighted weapon stays, so letting the stick spring back doesn't change the choice.
+  const float x = std::clamp(sx, -1.0f, 1.0f) * kCursorRadius;
+  const float y = -std::clamp(sy, -1.0f, 1.0f) * kCursorRadius;
+  {
+    std::lock_guard lock(g_cursor_mutex);
+    g_cursor_x = x;
+    g_cursor_y = y;
+  }
+  if (!g_open.load()) return;
   int n;
   {
     std::lock_guard lock(g_mutex);

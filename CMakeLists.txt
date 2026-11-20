@@ -21,7 +21,9 @@ set(JURASSICHUNTED_SOURCES
     src/button_prompts.cpp
     src/framerate.cpp
     src/graphics_settings.cpp
+    src/hide_hud.cpp
     src/menu_mouse.cpp
+    src/pad_filter.cpp
     src/pc_input.cpp
     src/pc_options.cpp
     src/settings_file.cpp

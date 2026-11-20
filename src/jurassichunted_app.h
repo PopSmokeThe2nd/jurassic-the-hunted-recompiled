@@ -18,6 +18,7 @@
 #include "game_files.h"
 #include "framerate.h"
 #include "graphics_settings.h"
+#include "pad_filter.h"
 #include "pc_input.h"
 #include "pc_options.h"
 #include "test_input.h"
@@ -111,6 +112,7 @@ class JurassicHuntedApp : public rex::ReXApp {
       auto input = rex::input::CreateDefaultInputSystem(tool_mode);
       jth::opts::SetInputSystem(input.get());  // F2 panel: controller navigation, input blocker
       if (!tool_mode) {
+        jth::pad::Install(input.get());  // controller weapon wheel, toggle sprint
         if (auto pc = jth::pc::CreatePcInputDriver())
           input->AddDriver(std::move(pc));
         if (auto scripted = jth::CreateScriptedInputDriver())  // --test_input_file only

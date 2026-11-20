@@ -50,6 +50,7 @@ struct Step {
   int click = 0;            // 1 = left, 2 = right (click command)
   int wheel = 0;            // +1 up / -1 down (wheel command)
   std::string lua;          // Lua code run when the step starts (lua command)
+  std::string set_name, set_value;  // setting changed when the step starts (setq command)
   std::string label;
 };
 
@@ -238,6 +239,8 @@ class ScriptedInputDriver final : public rex::input::InputDriver {
       ok = static_cast<bool>(ss >> which >> x >> y >> s.ms) && (which == "l" || which == "r");
       (which == "l" ? s.lx : s.rx) = Axis(x);
       (which == "l" ? s.ly : s.ry) = Axis(y);
+      std::string spec;  // optional buttons held at the same time, e.g. "stick l 1 0 800 y"
+      if (ok && ss >> spec) s.buttons = ParseButtons(spec, ok);
     } else if (cmd == "key") {
       std::string names, name;
       ss >> names;
@@ -267,6 +270,9 @@ class ScriptedInputDriver final : public rex::input::InputDriver {
         REXLOG_INFO("Scripted input: set {} = {} ({})", name, value, applied ? "ok" : "rejected");
       }
       return;
+    } else if (cmd == "setq") {  // change a setting in sequence, when this step is reached
+      ok = static_cast<bool>(ss >> s.set_name >> s.set_value);
+      s.ms = 1;
     } else if (cmd == "mouse") {
       ok = static_cast<bool>(ss >> s.mdx >> s.mdy);
       int ms = 0;
@@ -334,6 +340,11 @@ class ScriptedInputDriver final : public rex::input::InputDriver {
       if (current_.click) jth::menu_mouse::OnClick(current_.click == 2);
       if (current_.wheel) jth::menu_mouse::OnWheel(current_.wheel);
       if (!current_.lua.empty()) jth::devlua::Queue(current_.lua);
+      if (!current_.set_name.empty()) {
+        const bool applied = rex::cvar::SetFlagByName(current_.set_name, current_.set_value);
+        REXLOG_INFO("Scripted input: setq {} = {} ({})", current_.set_name, current_.set_value,
+                    applied ? "ok" : "rejected");
+      }
       if (current_.label != "(release)")
         REXLOG_INFO("Scripted input: {}", current_.label);
     }

@@ -5,7 +5,8 @@
 //
 //   tap <buttons> [ms]          press then release (default 120 ms down, 150 ms up)
 //   hold <buttons> <ms>         press for <ms>
-//   stick <l|r> <x> <y> <ms>    move a stick; x/y in -1..1 (y up is positive)
+//   stick <l|r> <x> <y> <ms> [buttons]   move a stick; x/y in -1..1 (y up is positive),
+//                               optionally holding buttons too (e.g. "stick l 0 -1 800 y")
 //   trigger <l|r> <0..1> <ms>   pull a trigger
 //   wait <ms>                   neutral input
 //   key <name>[+name...] [ms]   hold PC keys (default 120 ms), e.g. "key space", "key lshift+w 3000"
@@ -13,6 +14,7 @@
 //       "key q 2000 mouse 0 -80 600" (weapon wheel: hold Q, point up)
 //   mouse <dx> <dy> [ms]        move the mouse by (dx, dy) counts, then wait (default 60 ms)
 //   set <setting> <value>       change a setting right away (not queued), e.g. "set fov 110"
+//   setq <setting> <value>      change a setting in sequence, when this step is reached
 //   lua <code>                  run Lua in the game's script state (in sequence; the rest of the line
 //                               as written); the result or error is logged ("lua: ..."), see dev_lua.h
 //   pointer <x> <y> [ms]        move the menu cursor (1280x720 GUI units)

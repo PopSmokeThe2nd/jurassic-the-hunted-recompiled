@@ -135,6 +135,15 @@
       "defaults": { "show_fps": "false" }
     },
     {
+      "id": "hide_hud", "label": "HUD", "group": "Display",
+      "help": "Hidden shows just the game: no crosshair, ammo, messages, subtitles or button prompts.",
+      "choices": [
+        { "label": "Shown", "set": { "hide_hud": "false" } },
+        { "label": "Hidden", "set": { "hide_hud": "true" } }
+      ],
+      "defaults": { "hide_hud": "false" }
+    },
+    {
       "id": "fov", "label": "Field of view", "group": "Display",
       "help": "Horizontal degrees at 16:9. The game's own is 86. Cutscenes keep their framing.",
       "slider": { "key": "fov", "min": 60, "max": 120, "step": 1, "format": "%d" },
@@ -168,12 +177,21 @@
     },
     {
       "id": "weapon_wheel", "label": "Weapon wheel", "group": "Controls",
-      "help": "Hold Q and point with the mouse to pick a weapon; tap Q for the next one. Keys 1 to 9 pick one directly.",
+      "help": "Hold Q and point with the mouse, or hold Y / triangle and point with the left stick, to pick a weapon; a tap still switches to the next one. Keys 1 to 9 pick one directly.",
       "choices": [
         { "label": "On", "set": { "weapon_wheel": "true" } },
         { "label": "Off", "set": { "weapon_wheel": "false" } }
       ],
       "defaults": { "weapon_wheel": "true" }
+    },
+    {
+      "id": "toggle_sprint", "label": "Sprint", "group": "Controls",
+      "help": "Toggle: press sprint (left stick click or Shift) once instead of holding it; it stops when you stop moving or press it again.",
+      "choices": [
+        { "label": "Hold", "set": { "toggle_sprint": "false" } },
+        { "label": "Toggle", "set": { "toggle_sprint": "true" } }
+      ],
+      "defaults": { "toggle_sprint": "false" }
     },
     {
       "id": "prompts", "label": "Button icons", "group": "Controls",

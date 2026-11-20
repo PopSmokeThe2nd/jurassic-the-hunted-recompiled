@@ -32,6 +32,9 @@ REXCVAR_DEFINE_DOUBLE(cheat_super_speed, 1.0, "Cheats",
     .range(1.0, 4.0)
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 REXCVAR_DEFINE_BOOL(log_damage, false, "Debug", "Log every damage calculation (developer tool)");
+REXCVAR_DEFINE_BOOL(log_player_pos, false, "Debug",
+                    "Log the player's position four times a second, e.g. to measure movement "
+                    "speed (developer tool)");
 REXCVAR_DEFINE_BOOL(log_ammo, false, "Debug",
                     "Log the weapon in hand's ammo fields whenever they change (developer tool)");
 
@@ -90,6 +93,15 @@ void ApplyCheats(uint32_t controller) {
   if (!Guest::heap_ptr(actor) || g.u32(actor) != kVtActor) return;
   g_player_actor.store(actor, std::memory_order_relaxed);
 
+  if (REXCVAR_GET(log_player_pos)) {  // Actor +0x50/+0x54/+0x58, four times a second
+    static auto last_pos = std::chrono::steady_clock::time_point{};
+    const auto now = std::chrono::steady_clock::now();
+    if (now - last_pos >= std::chrono::milliseconds(250)) {
+      last_pos = now;
+      REXLOG_INFO("Player position: {:.2f} {:.2f} {:.2f}", g.f32(actor + 0x50),
+                  g.f32(actor + 0x54), g.f32(actor + 0x58));
+    }
+  }
   if (REXCVAR_GET(log_ammo)) {
     // The item in hand: type, and the words around its magazine fields (+612 capacity, +616
     // loaded), logged when anything there changes.

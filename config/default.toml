@@ -144,6 +144,13 @@ address = 0x822EF114
 name = "JthDamageAnimal"
 registers = ["r3", "r4"]
 
+# GuiPage::SetVisible (sub_8211CC48: r3 = page, r4 = visible), after the prologue: hide_hud
+# (src/hide_hud.cpp) keeps the HUD pages ("hud") hidden and notes what the game asks for.
+[[midasm_hook]]
+address = 0x8211CC58
+name = "JthGuiPageSetVisible"
+registers = ["r3", "r4"]
+
 # csControllerActor's movement step (sub_82241E10, r31 = the controller). At 0x82242050 it loads
 # the input speed modifier (+264, set by the script command scSetInputSpeedModifier) into f0 and
 # then multiplies the movement input (+76/+80/+84) by it. JthMoveSpeed (src/cheats.cpp) scales f0

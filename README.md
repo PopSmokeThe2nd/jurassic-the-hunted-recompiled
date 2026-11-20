@@ -114,12 +114,13 @@ icon, extracted from `default.xex` with `tools/extract_title_icon.py` and conver
 slowly panning background, the logo, and four tabs.
 
 - **GRAPHICS**: internal resolution and anti-aliasing (one row), upscaler (FSR etc.), frame rate
-  with vsync and the FPS counter, display mode (borderless, exclusive fullscreen or windowed, with
-  a window size) and field of view, with a live hint of what they'll do on your display.
+  with vsync, the FPS counter and Hide HUD, display mode (borderless, exclusive fullscreen or
+  windowed, with a window size) and field of view, with a live hint of what they'll do on your
+  display.
 - **CONTROLS**: every action with its PC key, Xbox button and PlayStation button. Keys come from
   the `[bind]` section of `jurassichunted.toml`, so rebinds show up here. **In-game button icons**
   (Xbox / PlayStation) picks which icons the game's own prompts use (see
-  [Button prompts](#button-prompts)).
+  [Button prompts](#button-prompts)). Next to it: the weapon wheel and toggle sprint.
 - **CHEATS**: god mode, infinite ammo, infinite adrenaline, infinite grenades, one hit kill and
   super speed (1.5x to 4x).
 - **GAME ISO**: pick your Xbox 360 disc image. The launcher checks it's Jurassic: The Hunted
@@ -168,8 +169,8 @@ gives it:
   isn't asked again.
 - **Play** starts `jurassichunted.exe`, which finds `game\` by itself as always.
 - **Settings:** resolution, upscaling, sharpness, anti-aliasing, frame rate, V-Sync, the FPS
-  counter, FOV, display mode and window size, mouse sensitivity, the weapon wheel, button icons and
-  the cheats (super speed as a choice of multipliers), written to
+  counter, the HUD, FOV, display mode and window size, mouse sensitivity, the weapon wheel, toggle
+  sprint, button icons and the cheats (super speed as a choice of multipliers), written to
   `jurassichunted.toml` with the same keys this launcher and the F2 panel use. On the first start
   the button icons follow the controller plugged in (`{pad}`: Xbox or PlayStation). Also: where saves
   and logs are (for its backups and crash reports), and buttons to open them or clear the shader
@@ -317,7 +318,7 @@ logs a warning.
 Press **F2** in game for the PC Options panel:
 
 - **Field of view** (60–120 horizontal degrees at 16:9; the game's default is 86).
-- **Mouse sensitivity**, and the **weapon wheel** on/off.
+- **Mouse sensitivity**, the **weapon wheel** on/off and **toggle sprint**.
 - **Upscaling**: AMD FSR 1, AMD CAS or off (bilinear), plus a **sharpness** slider (FSR's RCAS
   sharpness, or CAS's extra sharpness). Switches live, without a restart: the SDK patch makes the
   presenter re-read `present_effect` / `present_fsr_sharpness_reduction` /
@@ -326,6 +327,8 @@ Press **F2** in game for the PC Options panel:
 - **Anti-aliasing**: off, FXAA or FXAA (high quality), live (see
   [Anti-aliasing](#anti-aliasing-and-why-theres-no-msaa-option)).
 - **Frame rate** (30–240) and the **FPS counter**.
+- **Hide HUD**: just the game, with no crosshair, ammo, compass, objectives, messages, subtitles
+  or button prompts (see [Hide HUD](#hide-hud)).
 - **Display mode**: borderless, fullscreen (exclusive) or windowed, plus the window size when
   windowed. These are the SDK's own `fullscreen`, `fullscreen_exclusive`, `window_width` and
   `window_height` settings, which it applies to the window live.
@@ -370,6 +373,22 @@ How it works: `Camera::Update` (`sub_82260948`) widens the stored 70° (4:3) FOV
 and passes it to the perspective builder `sub_822640F0`. A mid-function hook at `0x82260A98`
 (`JthCameraFov` in `src/pc_options.cpp`) rescales that value for the player camera in tangent
 space.
+
+## Hide HUD
+
+`hide_hud = true` (launcher: GRAPHICS → Hide HUD, or F2; applies live) hides everything the game
+draws over the picture: crosshair, ammo, grenades, compass, objectives, messages, subtitles and
+button prompts. Menus, the pause screen and cutscenes are unchanged.
+
+The HUD is the GUI page `hud` (`gui/hud.xml`), loaded twice: by the player's HUD object
+(`ActorHud_SPBase`, at ActorProperties +196, its page at +4) and by the GUI manager. Both are shown
+and hidden with `GuiPage::SetVisible` (`sub_8211CC48`: r3 = page, r4 = visible; visible flag at
+page +22, name at +4). `src/hide_hud.cpp` hooks its start (`JthGuiPageSetVisible`, `0x8211CC58`).
+It notes what the game asks for each `hud` page and turns a "show" into "hide" while the option is
+on. Once per frame (GUI update) it also hides any `hud` page still showing. Turning the option off
+shows a page again only if the game last asked for it, so a HUD hidden by a cutscene stays hidden.
+`World:ShowGuiPage(false, "hud")` from Lua isn't enough: it only reaches the GUI manager's copy,
+and the game shows it again.
 
 ## Cheats
 
@@ -448,6 +467,13 @@ window loses focus.
 | Balance (fallen trees, beams) | A / D, ← / →, or mouse left/right | Right stick ← → |
 | Menus | Mouse (point, click, right-click back, wheel), arrows, Enter (accept), Backspace or Escape (back) | |
 
+**Toggle sprint** (`toggle_sprint`, off by default; launcher: CONTROLS, or F2): one press of sprint
+(left stick click or Shift) keeps you sprinting until you stop moving (stick near the center for
+0.3 s) or press it again. The game itself only sprints while the button is held, so
+`src/pad_filter.cpp` keeps the button held in the state the game reads while the toggle is on
+(SDK patch: `InputSystem::SetGuestStateFilter`). Measured in L17: the same 5.0 m/s sprint as
+holding the button.
+
 **Weapon wheel** (`weapon_wheel`, on by default; launcher: CONTROLS, or F2): holding the
 change-weapon key for more than ~0.2 s opens a radial menu of the weapons you carry: a picture of
 each, its name, its slot number and the rounds in its magazine, with the one in hand marked. Move
@@ -455,6 +481,13 @@ the mouse toward a weapon and release the key (or left-click); right-click or Es
 tap still switches to the next weapon (on release), and number keys that aren't bound to anything
 else pick weapons directly.
 
+- **On a controller:** hold Y (triangle on a PlayStation controller) for the same wheel; the left
+  stick points at a weapon, releasing the button switches to it and B / circle cancels. A tap still
+  switches to the next weapon. The SDK patch adds `InputSystem::SetGuestStateFilter`, a hook on
+  the state the game reads (not the one SDK dialogs read). `src/pad_filter.cpp` hides Y from the
+  game while it's down, replays a tap as a 100 ms Y press, and hides the left stick (so the player
+  stands still) and B while the wheel is open. The keyboard's own Y pulses (a Q tap, a mouse-wheel
+  notch) pass straight through.
 - **Pointing:** the mouse moves a pointer (scaled by `mouse_sensitivity`, so the same hand movement
   works at any DPI) instead of the camera, and firing/aiming are held back while the wheel is open.
   Movement already counts from the moment the key goes down, so a quick press-and-flick picks the
@@ -710,7 +743,9 @@ the command syntax: `tap a`, `hold lb+rb 500`, `stick l 0 1 2000`, `key space`, 
   `viewmodel_xy_scale` / `viewmodel_depth_range` in `graphics/util/draw.cpp` (fixed weapon size);
   live `swap_post_effect` changes in `graphics/graphics_system.cpp` (FXAA in the F2 panel); and
   `rex::input::TouchpadClickCount()` (`include/rex/input/touchpad.h`, counted in
-  `input/sdl/sdl_input_driver.cpp`), so a PlayStation controller's touchpad can open the F2 panel.
+  `input/sdl/sdl_input_driver.cpp`), so a PlayStation controller's touchpad can open the F2 panel;
+  and `InputSystem::SetGuestStateFilter` (`input/input_system.cpp`), which lets the app rewrite
+  the controller state the game reads (controller weapon wheel, toggle sprint).
 - **GPU plugin settings** (`resolution_scale`, `anisotropic_override`, `vsync`, ...) live in
   `rexgpu-xenos.dll`, which registers them only when it loads, after `OnPreSetup`. Setting them
   there is silently rejected; hand them over through the environment (`REX_<NAME>`, applied when

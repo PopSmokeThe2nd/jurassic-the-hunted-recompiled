@@ -55,6 +55,8 @@ REXCVAR_DECLARE(int32_t, framerate);  // defined in framerate.cpp
 REXCVAR_DECLARE(bool, show_fps);
 REXCVAR_DECLARE(double, hdr_max_brightening);  // defined in graphics_settings.cpp
 REXCVAR_DECLARE(bool, weapon_wheel);            // defined in weapon_wheel.cpp
+REXCVAR_DECLARE(bool, toggle_sprint);           // defined in pad_filter.cpp
+REXCVAR_DECLARE(bool, hide_hud);                // defined in hide_hud.cpp
 
 namespace {
 
@@ -189,8 +191,14 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
         Save();
       }
       bool wheel = REXCVAR_GET(weapon_wheel);
-      if (ImGui::Checkbox("Weapon wheel (hold the change-weapon key; 1-9 pick a weapon)", &wheel)) {
+      if (ImGui::Checkbox("Weapon wheel (hold Q, or Y / triangle; 1-9 pick a weapon)", &wheel)) {
         rex::cvar::SetFlagByName("weapon_wheel", wheel ? "true" : "false");
+        Save();
+      }
+      bool toggle_sprint = REXCVAR_GET(toggle_sprint);
+      if (ImGui::Checkbox("Toggle sprint (press once; stops when you stop moving)",
+                          &toggle_sprint)) {
+        rex::cvar::SetFlagByName("toggle_sprint", toggle_sprint ? "true" : "false");
         Save();
       }
 
@@ -254,6 +262,12 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
       bool show_fps = REXCVAR_GET(show_fps);
       if (ImGui::Checkbox("Show FPS counter", &show_fps)) {
         jth::fps::ShowFpsCounter(show_fps);
+        Save();
+      }
+      bool hide_hud = REXCVAR_GET(hide_hud);
+      if (ImGui::Checkbox("Hide HUD (crosshair, ammo, messages, subtitles, button prompts)",
+                          &hide_hud)) {
+        rex::cvar::SetFlagByName("hide_hud", hide_hud ? "true" : "false");
         Save();
       }
       // Display mode: the SDK's window settings, which it applies live.
@@ -373,6 +387,8 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
              {"antialiasing", Quote(REXCVAR_GET(antialiasing))},
              {"framerate", std::to_string(REXCVAR_GET(framerate))},
              {"show_fps", flag(REXCVAR_GET(show_fps))},
+             {"hide_hud", flag(REXCVAR_GET(hide_hud))},
+             {"toggle_sprint", flag(REXCVAR_GET(toggle_sprint))},
              {"fullscreen", rex::cvar::GetFlagByName("fullscreen")},
              {"fullscreen_exclusive", rex::cvar::GetFlagByName("fullscreen_exclusive")},
              {"window_width", rex::cvar::GetFlagByName("window_width")},

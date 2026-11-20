@@ -1,3 +1,36 @@
+diff --git a/include/rex/input/input_system.h b/include/rex/input/input_system.h
+index 0c27eedc..12f28d92 100644
+--- a/include/rex/input/input_system.h
++++ b/include/rex/input/input_system.h
+@@ -13,6 +13,7 @@
+ #include <array>
+ #include <atomic>
+ #include <bitset>
++#include <functional>
+ #include <memory>
+ #include <utility>
+ #include <vector>
+@@ -59,6 +60,12 @@ class InputSystem : public system::IInputSystem {
+   void AddUIInputBlocker();
+   void RemoveUIInputBlocker();
+ 
++  /// [Jurassic: The Hunted Recompiled] Rewrites the state the guest reads (GetState, not
++  /// GetStateForUI), last, e.g. to turn a held button into a radial menu. Not called while a UI
++  /// blocker is held. Set it before the guest starts reading input.
++  using GuestStateFilter = std::function<void(uint32_t user_index, X_INPUT_STATE* state)>;
++  void SetGuestStateFilter(GuestStateFilter filter) { guest_state_filter_ = std::move(filter); }
++
+   bool GetVibrationEnabled() const;
+   void ToggleVibration();
+ 
+@@ -101,6 +108,7 @@ class InputSystem : public system::IInputSystem {
+   std::atomic<int> ui_input_blockers_{0};
+   // Masked out per user until the guest sees them released.
+   std::array<uint16_t, kMaxGuestUsers> consumed_buttons_ = {};
++  GuestStateFilter guest_state_filter_;
+ };
+ 
+ /// Create a default InputSystem with SDL + MnK + NOP drivers.
 diff --git a/include/rex/input/touchpad.h b/include/rex/input/touchpad.h
 new file mode 100644
 index 00000000..5ff7faf3
@@ -178,6 +211,21 @@ index 305380e9..c8f5c65e 100644
    if (origin_bottom_left) {
      ndc_scale[1] = -ndc_scale[1];
      ndc_offset[1] = -ndc_offset[1];
+diff --git a/src/input/input_system.cpp b/src/input/input_system.cpp
+index 40740ee5..8f7bc637 100644
+--- a/src/input/input_system.cpp
++++ b/src/input/input_system.cpp
+@@ -290,6 +290,10 @@ X_RESULT InputSystem::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
+     out_state->gamepad.buttons = static_cast<uint16_t>(buttons & ~consumed_buttons_[user_index]);
+   }
+ 
++  if (result == X_ERROR_SUCCESS && out_state && guest_state_filter_) {
++    guest_state_filter_(user_index, out_state);
++  }
++
+   return result;
+ }
+ 
 diff --git a/src/input/sdl/sdl_input_driver.cpp b/src/input/sdl/sdl_input_driver.cpp
 index 57f65c4e..692ca3bc 100644
 --- a/src/input/sdl/sdl_input_driver.cpp

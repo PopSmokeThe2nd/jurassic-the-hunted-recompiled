@@ -31,6 +31,10 @@ void SetTestKey(int vk, bool down);
 // True while the in-game camera is taking look input (i.e. not in a menu or cutscene).
 bool GameplayLookActive();
 
+// The controller buttons the keyboard/mouse reported in its latest state (e.g. the Y pulses of a
+// Q tap or mouse-wheel step), so pad_filter.cpp can tell them from a real controller's.
+uint16_t KeyboardButtons();
+
 // Balancing (fallen trees / beams, e.g. L04): while the player controller's +841 flag is set
 // (StartBalance), its update runs the balance code (sub_821C26A8) instead of the normal look,
 // which steers with LookHorizontal (right stick X). Called once per frame from that update

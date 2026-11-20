@@ -95,17 +95,18 @@ AFTER THAT
 
 SETTINGS (in the launcher)
   GRAPHICS  internal resolution (up to 4K), anti-aliasing (FXAA), AMD FSR upscaling,
-            frame rate (30-240 fps), vsync, FPS counter, display mode (borderless,
-            fullscreen or windowed, with a window size), field of view
+            frame rate (30-240 fps), vsync, FPS counter, Hide HUD, display mode
+            (borderless, fullscreen or windowed, with a window size), field of view
   CONTROLS  every action with its PC key, Xbox button and PlayStation button,
             "In-game button icons": Xbox, PlayStation or keyboard keys in the game's prompts,
-            and the weapon wheel on/off
+            the weapon wheel on/off and toggle sprint
   CHEATS    god mode, infinite ammo, infinite adrenaline, infinite grenades, one hit kill,
             super speed (1.5x to 4x)
   In game, press F2 (or click a PlayStation controller's touchpad) for field of view,
-  mouse sensitivity, the weapon wheel, AMD FSR upscaling, anti-aliasing, frame rate,
-  the FPS counter, display mode, the auto-exposure limit and cheats. Changes there apply
-  instantly and are saved right away. With a controller: D-pad to move, A / cross to change.
+  mouse sensitivity, the weapon wheel, toggle sprint, AMD FSR upscaling, anti-aliasing,
+  frame rate, the FPS counter, Hide HUD, display mode, the auto-exposure limit and cheats.
+  Changes there apply instantly and are saved right away. With a controller: D-pad to
+  move, A / cross to change.
   (The game has no adjustable MSAA; a higher internal resolution also smooths edges.)
 
 CONTROLS
@@ -113,7 +114,10 @@ CONTROLS
   Crouch C    Reload R     Next weapon: tap Q / mouse wheel   Grenade G   Adrenaline F
   Sprint Shift   Melee V   Interact E   Objectives Tab   Pause Esc
   Weapon wheel: hold Q, point with the mouse, release (right click cancels).
+  On a controller: hold Y / triangle, point with the left stick, release (B / circle
+  cancels). A tap still switches to the next weapon.
   Number keys 1-9 pick a weapon directly.
+  Toggle sprint (launcher CONTROLS or F2): press Shift / the left stick once to sprint.
   Your own weapon pictures: put PNGs in a "weapon_images" folder here, named
   ass_bar, ass_m249, ass_scar, pis_colt1911, pis_glock18c, pis_smith, plasmagun,
   rif_coltrifle, rpg7, sho_future, sho_mossberg, sil_crossbow or sni_whitworth

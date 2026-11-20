@@ -1,7 +1,8 @@
 // Weapon wheel (PC): hold the change-weapon key (Q) to open a radial menu of the weapons you
 // carry (picture, name, rounds), point at one with the mouse, and release (or click) to switch to
 // it. A quick tap still switches to the next weapon, and the number keys 1-9 pick a weapon
-// directly.
+// directly. On a controller, holding Y / triangle opens it and the left stick points
+// (pad_filter.cpp).
 //
 //   weapon_wheel      enable the wheel and the number keys (default true)
 //
@@ -43,7 +44,11 @@ void OnPlayerFrame(uint32_t controller);
 // pointer), EndHold if it comes back up as a tap, Open once it has been held long enough.
 void BeginHold();
 void EndHold();
-void Open();
+// by_pad: opened with a controller (Y / triangle held, pad_filter.cpp): the left stick points
+// (SetStick) and the hints name the controller's buttons.
+void Open(bool by_pad = false);
+// Controller: the left stick's direction (x right, y up, -1..1) points at a weapon.
+void SetStick(float x, float y);
 void Confirm();  // switch to the highlighted weapon and close
 void Cancel();
 bool IsOpen();

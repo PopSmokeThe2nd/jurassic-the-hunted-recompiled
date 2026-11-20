@@ -15,6 +15,7 @@
 
 #include "cheats.h"
 #include "dev_lua.h"
+#include "hide_hud.h"
 #include "pc_options.h"
 #include "jurassichunted_funcs.h"
 #include "pc_input.h"  // generated: guest function declarations (+ pch macros)
@@ -123,6 +124,7 @@ REX_HOOK_RAW(sub_82126880) {
   __imp__sub_82126880(ctx, base);
   jth::devlua::RunPending(ctx, base);  // developer tool: queued Lua (test command "lua")
   jth::cheats::OnGuiUpdate(ctx, base);  // infinite grenades
+  jth::hud::OnGuiUpdate(ctx, base);     // hide_hud
   jth::opts::PollTouchpad();             // PlayStation touchpad: F2 panel
 
   const uint32_t page = Be32(base, gui + 184);
