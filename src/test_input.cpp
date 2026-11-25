@@ -239,8 +239,19 @@ class ScriptedInputDriver final : public rex::input::InputDriver {
       ok = static_cast<bool>(ss >> which >> x >> y >> s.ms) && (which == "l" || which == "r");
       (which == "l" ? s.lx : s.rx) = Axis(x);
       (which == "l" ? s.ly : s.ry) = Axis(y);
-      std::string spec;  // optional buttons held at the same time, e.g. "stick l 1 0 800 y"
-      if (ok && ss >> spec) s.buttons = ParseButtons(spec, ok);
+      // Optional buttons held at the same time, e.g. "stick l 1 0 800 y"; "lt" / "rt" pull a
+      // trigger fully ("stick l 0 1 800 rt+ls").
+      std::string spec;
+      if (ok && ss >> spec) {
+        std::string rest, part;
+        std::stringstream parts(spec);
+        while (std::getline(parts, part, '+')) {
+          if (part == "lt") s.lt = 255;
+          else if (part == "rt") s.rt = 255;
+          else rest += (rest.empty() ? "" : "+") + part;
+        }
+        if (!rest.empty()) s.buttons = ParseButtons(rest, ok);
+      }
     } else if (cmd == "key") {
       std::string names, name;
       ss >> names;

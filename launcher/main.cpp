@@ -869,7 +869,8 @@ void DrawControlsTab() {
   if (ImGui::Checkbox("Toggle sprint", &s.toggle_sprint)) g_app.SaveSettings();
   if (ImGui::IsItemHovered())
     ImGui::SetTooltip("%s", "Press sprint (left stick click or Shift) once instead of holding it.\n"
-                            "It stops when you stop moving or press it again.");
+                            "It stops when you stop or turn off course, shoot, aim, reload or "
+                            "crouch,\nor press it again.");
   ImGui::PopStyleVar();
 }
 

@@ -186,7 +186,7 @@
     },
     {
       "id": "toggle_sprint", "label": "Sprint", "group": "Controls",
-      "help": "Toggle: press sprint (left stick click or Shift) once instead of holding it; it stops when you stop moving or press it again.",
+      "help": "Toggle: press sprint (left stick click or Shift) once instead of holding it; it stops when you stop, shoot, aim, reload or crouch, or press it again.",
       "choices": [
         { "label": "Hold", "set": { "toggle_sprint": "false" } },
         { "label": "Toggle", "set": { "toggle_sprint": "true" } }

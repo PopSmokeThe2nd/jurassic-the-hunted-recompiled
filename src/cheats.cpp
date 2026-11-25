@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <map>
 #include <cstring>
 #include <string>
 
@@ -83,8 +84,11 @@ struct Guest {
 bool g_god_applied = false;
 uint32_t g_god_actor = 0;
 std::atomic<uint32_t> g_player_actor{0};  // the player's Actor, refreshed every frame
+std::atomic<float> g_sprint_stamina{-1.0f};  // ActorProperties +16, or -1 when unknown
 
 }  // namespace
+
+float SprintStamina() { return g_sprint_stamina.load(std::memory_order_relaxed); }
 
 void ApplyCheats(uint32_t controller) {
   Guest g{rex::system::kernel_memory()->virtual_membase()};
@@ -93,13 +97,24 @@ void ApplyCheats(uint32_t controller) {
   if (!Guest::heap_ptr(actor) || g.u32(actor) != kVtActor) return;
   g_player_actor.store(actor, std::memory_order_relaxed);
 
+  // Sprint stamina (ActorProperties +16): drains at SprintStaminaDecaySpeed (4/s, from ~30) while
+  // the player sprints. Toggle sprint (pad_filter.cpp) watches it to see when the game's sprint
+  // ends.
+  {
+    const uint32_t props = g.u32(actor + 0x158);
+    const bool ok = Guest::heap_ptr(props) &&
+                    (g.u32(props) == kVtActorProperties || g.u32(props) == kVtActorPropertiesSP);
+    g_sprint_stamina.store(ok ? g.f32(props + 16) : -1.0f, std::memory_order_relaxed);
+  }
+
   if (REXCVAR_GET(log_player_pos)) {  // Actor +0x50/+0x54/+0x58, four times a second
     static auto last_pos = std::chrono::steady_clock::time_point{};
     const auto now = std::chrono::steady_clock::now();
     if (now - last_pos >= std::chrono::milliseconds(250)) {
       last_pos = now;
-      REXLOG_INFO("Player position: {:.2f} {:.2f} {:.2f}", g.f32(actor + 0x50),
-                  g.f32(actor + 0x54), g.f32(actor + 0x58));
+      REXLOG_INFO("Player position: {:.2f} {:.2f} {:.2f} (sprint stamina {:.2f})",
+                  g.f32(actor + 0x50), g.f32(actor + 0x54), g.f32(actor + 0x58),
+                  g_sprint_stamina.load(std::memory_order_relaxed));
     }
   }
   if (REXCVAR_GET(log_ammo)) {

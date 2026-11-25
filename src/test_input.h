@@ -6,7 +6,8 @@
 //   tap <buttons> [ms]          press then release (default 120 ms down, 150 ms up)
 //   hold <buttons> <ms>         press for <ms>
 //   stick <l|r> <x> <y> <ms> [buttons]   move a stick; x/y in -1..1 (y up is positive),
-//                               optionally holding buttons too (e.g. "stick l 0 -1 800 y")
+//                               optionally holding buttons too (e.g. "stick l 0 -1 800 y");
+//                               lt / rt in that list pull a trigger ("stick l 0 1 800 rt")
 //   trigger <l|r> <0..1> <ms>   pull a trigger
 //   wait <ms>                   neutral input
 //   key <name>[+name...] [ms]   hold PC keys (default 120 ms), e.g. "key space", "key lshift+w 3000"

@@ -468,11 +468,21 @@ window loses focus.
 | Menus | Mouse (point, click, right-click back, wheel), arrows, Enter (accept), Backspace or Escape (back) | |
 
 **Toggle sprint** (`toggle_sprint`, off by default; launcher: CONTROLS, or F2): one press of sprint
-(left stick click or Shift) keeps you sprinting until you stop moving (stick near the center for
-0.3 s) or press it again. The game itself only sprints while the button is held, so
-`src/pad_filter.cpp` keeps the button held in the state the game reads while the toggle is on
-(SDK patch: `InputSystem::SetGuestStateFilter`). Measured in L17: the same 5.0 m/s sprint as
-holding the button.
+(left stick click or Shift) keeps you sprinting. The game itself only sprints while the button is
+held, so `src/pad_filter.cpp` keeps the button held in the state the game reads (SDK patch:
+`InputSystem::SetGuestStateFilter`), and lets go of it when a player holding it would:
+
+- sprint is pressed again;
+- you stop (stick near the center for 0.3 s) or stop going forward (strafing, backing up);
+- you fire, aim, reload, crouch, melee, throw a grenade or use adrenaline. The game doesn't fire
+  while sprinting, so in 1.0.3, firing during a toggled sprint did nothing until the sprint ended a
+  few seconds later;
+- the game's own sprint ends: the player's sprint stamina (ActorProperties +16; drains at
+  `SprintStaminaDecaySpeed` = 4/s from 30, about 7.5 s of sprint) has stopped draining for 0.5 s,
+  e.g. it ran out or you ran into a wall. The next press then starts a new sprint.
+
+Measured in L17: the same 5.0 m/s sprint as holding the button; firing mid-sprint drops to the
+3.5 m/s run and fires at once.
 
 **Weapon wheel** (`weapon_wheel`, on by default; launcher: CONTROLS, or F2): holding the
 change-weapon key for more than ~0.2 s opens a radial menu of the weapons you carry: a picture of

@@ -17,7 +17,8 @@
 //   csControllerActorPlayer (vtable 0x820153B4)  +0x1C Actor*, +1072 gpManager*
 //   Actor (vtable 0x82009C8C)                    +228 bool Invincible, +0x158 ActorProperties*,
 //                                                +0x198 wsInventory*
-//   ActorProperties[_SPBase]                     +4 float max health, +8 float health
+//   ActorProperties[_SPBase]                     +4 float max health, +8 float health,
+//                                                +16 float sprint stamina
 //   wsInventory (vtable 0x820067F4)              +152 current item
 //   firearm item (type +16 == 49)                +612 magazine capacity, +616 rounds loaded
 //   wsModeReloadPlasmaGun (vtable 0x82030BCC)    +4 item, +64 load time, +68 charge, +72 full
@@ -34,6 +35,10 @@ namespace jth::cheats {
 
 // controller = guest address of the player's csControllerActorPlayer (r31 in the look update).
 void ApplyCheats(uint32_t controller);
+
+// The player's sprint stamina (ActorProperties +16; drains at 4/s while sprinting, from ~30),
+// as of the latest frame, or -1 when unknown. Any thread.
+float SprintStamina();
 
 // Game thread, from the GUI update (outside any running script): cheats done through the game's
 // Lua API (infinite grenades: Inventory:GetBulletCount / AddBullet, twice a second).

@@ -117,7 +117,8 @@ CONTROLS
   On a controller: hold Y / triangle, point with the left stick, release (B / circle
   cancels). A tap still switches to the next weapon.
   Number keys 1-9 pick a weapon directly.
-  Toggle sprint (launcher CONTROLS or F2): press Shift / the left stick once to sprint.
+  Toggle sprint (launcher CONTROLS or F2): press Shift / the left stick once to sprint;
+  it stops when you stop, shoot, aim, reload or crouch, or press it again.
   Your own weapon pictures: put PNGs in a "weapon_images" folder here, named
   ass_bar, ass_m249, ass_scar, pis_colt1911, pis_glock18c, pis_smith, plasmagun,
   rif_coltrifle, rpg7, sho_future, sho_mossberg, sil_crossbow or sni_whitworth

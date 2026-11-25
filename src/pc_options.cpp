@@ -196,7 +196,7 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
         Save();
       }
       bool toggle_sprint = REXCVAR_GET(toggle_sprint);
-      if (ImGui::Checkbox("Toggle sprint (press once; stops when you stop moving)",
+      if (ImGui::Checkbox("Toggle sprint (press once; stops when you stop, shoot or aim)",
                           &toggle_sprint)) {
         rex::cvar::SetFlagByName("toggle_sprint", toggle_sprint ? "true" : "false");
         Save();
