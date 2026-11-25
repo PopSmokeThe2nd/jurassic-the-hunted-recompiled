@@ -5,6 +5,10 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/ppc/context.h>
+#include <rex/system/kernel_state.h>
+
+#include <chrono>
+#include <cstring>
 
 // Windows last: its macros must not leak into the SDK headers above.
 #ifndef WIN32_LEAN_AND_MEAN
@@ -48,6 +52,15 @@ REXCVAR_DEFINE_DOUBLE(hdr_max_brightening, 2.0, "Graphics",
                       "Castaways, whose level allows 16x")
     .range(0.0, 16.0)
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_DOUBLE(exposure, 1.0, "Graphics",
+                      "Picture brightness: multiplies the game's HDR exposure (1 = as the level "
+                      "sets it; above 1 brighter, below darker)")
+    .range(0.25, 4.0)
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(log_hdr, false, "Debug",
+                    "Log the renderer's HDR auto-exposure state twice a second (developer tool)");
 
 namespace jth::gfx {
 namespace {
@@ -188,7 +201,38 @@ void ApplyGraphicsSettings() {
 // Renderer:SetHDRParam. The auto-exposure measures the scene through a GPU -> CPU readback that
 // the recompiled renderer doesn't provide, so the exposure always sits at the brightening limit:
 // harmless where levels allow 1.3-1.5x, a white-out in L08a (The Lost Castaways, 16x).
-void JthHdrParams(PPCRegister& f3) {
+// The auto-exposure update (in sub_8214E5xx) at 0x8214E8C8, about to store the frame's exposure
+// (renderer +332) from f0 = clamp(target avg / measured, 1 / max darkening, max brightening) x
+// (1 + renderer +364). The tone-mapping constants sent to the shader are divided by it
+// (sub_82143048). The exposure setting scales it; computed afresh each frame, so it doesn't
+// compound.
+void JthExposure(PPCRegister& f0) {
+  const double scale = REXCVAR_GET(exposure);
+  if (scale > 0.0 && scale != 1.0) f0.f64 *= std::clamp(scale, 0.25, 4.0);
+}
+
+void JthHdrParams(PPCRegister& r3, PPCRegister& f3) {
   const double cap = REXCVAR_GET(hdr_max_brightening);
   if (cap > 0.0 && f3.f64 > cap) f3.f64 = cap;
+  if (REXCVAR_GET(log_hdr)) {  // the renderer's HDR state (r3), twice a second
+    static auto last = std::chrono::steady_clock::time_point{};
+    const auto now = std::chrono::steady_clock::now();
+    const uint32_t r = r3.u32;
+    if (now - last >= std::chrono::milliseconds(500) && r >= 0x40000000 && r < 0x80000000) {
+      last = now;
+      const uint8_t* base = rex::system::kernel_memory()->virtual_membase();
+      auto f = [&](uint32_t off) {
+        const uint8_t* p = base + r + off;
+        const uint32_t v = uint32_t(p[0]) << 24 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 8 | p[3];
+        float x;
+        std::memcpy(&x, &v, 4);
+        return x;
+      };
+      REXLOG_INFO("HDR: target avg {:.3f} maxdark {:.3f} maxbright {:.3f} | current avg {:.3f} "
+                  "maxdark {:.3f} maxbright {:.3f} | adapted {:.4f} exposure {:.3f} k364 {:.3f} "
+                  "f368 {:.3f} f372 {:.3f} f376 {:.3f} | incoming f3 {:.3f}",
+                  f(288), f(292), f(296), f(308), f(312), f(316), f(328), f(332), f(364), f(368),
+                  f(372), f(376), f3.f64);
+    }
+  }
 }

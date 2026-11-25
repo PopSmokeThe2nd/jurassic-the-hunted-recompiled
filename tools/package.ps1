@@ -104,7 +104,7 @@ SETTINGS (in the launcher)
             super speed (1.5x to 4x)
   In game, press F2 (or click a PlayStation controller's touchpad) for field of view,
   mouse sensitivity, the weapon wheel, toggle sprint, AMD FSR upscaling, anti-aliasing,
-  frame rate, the FPS counter, Hide HUD, display mode, the auto-exposure limit and cheats.
+  frame rate, the FPS counter, Hide HUD, display mode, exposure (brightness) and cheats.
   Changes there apply instantly and are saved right away. With a controller: D-pad to
   move, A / cross to change.
   (The game has no adjustable MSAA; a higher internal resolution also smooths edges.)
@@ -128,6 +128,13 @@ CONTROLS
   Balancing on fallen trees: A / D, the left / right arrows or the mouse (tap to correct).
   An Xbox or PlayStation controller works too. Keys can be changed in the [bind]
   section of jurassichunted.toml.
+
+ACHIEVEMENTS
+  Played from RecompLauncher (recomplauncher.com), the game's own Xbox 360 achievements
+  go to your RecompLauncher profile (Recomp Achievements): unlocks, Beaten and Mastered,
+  leaderboards. Unlocks made with a cheat on, or right after loading a save, count as
+  Casual and stay off the leaderboards. Without RecompLauncher nothing is sent anywhere;
+  the game keeps its own list either way.
 
 IF THE GAME CRASHES
   The newest log in the "logs" folder ends with a CRASH line, and a crash_*.dmp
@@ -177,7 +184,10 @@ $licenses = @(
   @("SIMDe", "MIT", (Join-Path $tp "simde\COPYING")),
   @("AES-128 implementation", "see below", (Join-Path $tp "aes_128\LICENSE")),
   @("DES implementation", "see below", (Join-Path $tp "crypto\des\LICENSE")),
-  @("Dear ImGui", "MIT", (Join-Path $root "third_party\imgui\LICENSE.txt"))
+  @("Dear ImGui", "MIT", (Join-Path $root "third_party\imgui\LICENSE.txt")),
+  @("Recomp Achievements SDK (rl-achievements), for RecompLauncher", "Recomp Achievements License 1.0 (free for any game)", (Join-Path $root "third_party\rl-achievements\LICENSE")),
+  @("rcheevos (part of rl-achievements)", "MIT", (Join-Path $root "third_party\rl-achievements\sdk\third_party\rcheevos\LICENSE")),
+  @("cJSON (part of rl-achievements)", "MIT", (Join-Path $root "third_party\rl-achievements\sdk\third_party\cjson\LICENSE"))
 )
 $notices = New-Object System.Text.StringBuilder
 [void]$notices.AppendLine("THIRD-PARTY NOTICES")

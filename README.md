@@ -9,7 +9,8 @@ No game data is included: you supply your own disc image.
 **Status:** the whole campaign loads and plays (all 14 missions, plus Survivor mode) with
 keyboard/mouse or a controller, with native controls, a weapon wheel, 4K rendering, AMD FSR, FXAA,
 an FOV slider, frame rates up to 240 fps, cheats and a launcher (see below). Saving and Continue
-work.
+work. Played from RecompLauncher, it supports Recomp Achievements (see
+[Achievements](#achievements-recomp-achievements)).
 
 **What's in this repository:** only this project's own code, tools and documentation. No game
 data, no recompiled game code (`generated/default/` is produced by the build from your copy of the
@@ -48,6 +49,7 @@ next to the program.
 | `launcher/` | `JurassicTheHunted.exe` launcher (settings, ISO install, PLAY); its art in `launcher/assets/` is the game's own and not committed |
 | `assets/glyphs/` | Controller button images (Xbox, PlayStation) for the launcher's CONTROLS tab; not committed (optional) |
 | `third_party/imgui/` | Dear ImGui 1.92.5 (MIT), used by the launcher; its stb_truetype also draws the game's button icons |
+| `third_party/rl-achievements/` | Recomp Achievements SDK for RecompLauncher (its own license, free for any game; rcheevos and cJSON, MIT) |
 | `tools/` | Disc extraction, XEX decryption, analysis helpers |
 
 ## One-time setup
@@ -213,7 +215,8 @@ these images: its PlayStation icons are drawn in code (see [Button prompts](#but
 | `antialiasing` | `off`, `fxaa`, `fxaa_high` (also in the F2 panel, live) | `off` |
 | `framerate` | `30` (original), `60`, `120`, `144`, `165`, `185`, `240` | `30` |
 | `vertical_sync` | `true` / `false` | `false` |
-| `hdr_max_brightening` | `0`–`16`: how far auto-exposure may brighten (`0` = each level's own limit; also in F2) | `2.0` |
+| `exposure` | `0.25`–`4`: picture brightness, multiplying the game's HDR exposure (`1` = as each level sets it; also in F2) | `1.0` |
+| `hdr_max_brightening` | `0`–`16`: the most auto-exposure may brighten a level (`0` = each level's own limit); the Lost Castaways glare fix | `2.0` |
 
 The 3D scene is rendered at an exact multiple of the console's 1280×720, so `4k` is a true
 3840×2160 render, not an upscale. FSR applies when the window is larger than the internal
@@ -272,7 +275,20 @@ entry of its two HDR parameter setters (`sub_8213E3E8` target values, `sub_8213E
 `f3` = max brightening), which the level's `RenderParam` zones call every frame (`sub_822B6xxx`) and
 Lua's `Renderer:SetHDRParam` also uses. L08a now shows its dark jungle with light shafts; other
 levels are unchanged, since their own limits are below the cap. `0` restores the original behavior.
-The F2 panel has a slider for it.
+
+**Exposure (2.0.0).** Until 1.0.4 the F2 panel's slider was this cap, which players took for a
+brightness control. It isn't one: raising it above a level's own limit (L02 1.3, L17 2.0) can't
+brighten anything, and lowering it crushes the picture (L17: 2.0 → mean brightness 17.5, 1.0 → 3.1,
+0.5 → black). The renderer's auto-exposure update (`--log_hdr=true` logs it) computes
+exposure = clamp(target average +288 / measured +328, 1 / max darkening +292, max brightening
++296) × (1 + +364), stores it at renderer +332 (`0x8214E8C8`), and divides the tone-mapping
+constants (0.25, 0.50, 0.083, 0.67) by it for the shader (`sub_82143048`). With no readback the
+measured value is 0, so exposure is always the limit.
+
+`exposure` (default 1.0, F2 and RecompLauncher: 0.5–3x) multiplies that stored value each frame
+(`JthExposure`, hook at `0x8214E8C8`), so it works in every level, both ways. Measured in L17
+(mean brightness of the screen): 0.5x 3.1, 0.75x 9.2, 1x 17.5, 1.25x 27.8, 1.5x 39.0, 2x 63.6,
+3x 114.4. The cap stays as the Lost Castaways fix (settings file, RecompLauncher's "Glare limit").
 
 ### Frame rate
 
@@ -332,7 +348,7 @@ Press **F2** in game for the PC Options panel:
 - **Display mode**: borderless, fullscreen (exclusive) or windowed, plus the window size when
   windowed. These are the SDK's own `fullscreen`, `fullscreen_exclusive`, `window_width` and
   `window_height` settings, which it applies to the window live.
-- **Auto-exposure brightening limit** (see
+- **Exposure**: picture brightness, 0.5–3x (see
   [Auto-exposure](#auto-exposure-the-white-glare-in-the-lost-castaways)).
 - **Cheats**, including the super speed multiplier.
 
@@ -341,7 +357,7 @@ Everything applies instantly and is saved to `jurassichunted.toml` as soon as yo
 nothing is lost if the game is closed with the panel open. Only the panel's own keys are touched
 (`fov`, `weapon_fov_fixed`, `mouse_sensitivity`, `weapon_wheel`, `upscaler`,
 `upscaler_sharpness`, `antialiasing`, `framerate`, `show_fps`, `fullscreen`,
-`fullscreen_exclusive`, `window_width`, `window_height`, `hdr_max_brightening`, `cheat_*`); other
+`fullscreen_exclusive`, `window_width`, `window_height`, `exposure`, `cheat_*`); other
 settings and comments are kept, and the launcher reads the same keys. Earlier builds saved only
 FOV and sensitivity, and only when the panel was closed. While the panel is open, game input is
 paused and the cursor is free.
@@ -389,6 +405,40 @@ on. Once per frame (GUI update) it also hides any `hud` page still showing. Turn
 shows a page again only if the game last asked for it, so a HUD hidden by a cutscene stays hidden.
 `World:ShowGuiPage(false, "hud")` from Lua isn't enough: it only reaches the GUI manager's copy,
 and the game shows it again.
+
+## Achievements (Recomp Achievements)
+
+Played from [RecompLauncher](https://recomplauncher.com), the game's own Xbox 360 achievements (31,
+read from the XEX by ReXGlue) go to the player's RecompLauncher profile through
+[Recomp Achievements](https://github.com/elripalda/RecompAchievements): unlock toasts, "Beaten" and
+"Mastered" games, rarity and leaderboards. Started any other way, nothing is sent and the game
+keeps its own list (`%LOCALAPPDATA%\JurassicTheHuntedRecomp\achievements\41560870.toml`) as before.
+
+The library is in `third_party/rl-achievements` (unmodified; its license: free for any game). It
+talks to the launcher over a local pipe named in `RL_SESSION`, which RecompLauncher sets.
+`src/recomp_achievements.cpp` does the ReXGlue bridge from app code:
+
+- **The list**: once the title's achievements are loaded (first GUI update), every achievement's
+  name, description and gamerscore (`rl_ach_native_define`), then `rl_ach_init("x360")` with the
+  catalog id `jurassic-the-hunted-recompiled` and the version (`src/version.h`).
+- **Unlocks**: earlier ones sent once as earlier (`rl_ach_native_earlier`, kept as Casual); new
+  ones from the SDK's unlock callback (`rl_ach_native`).
+- **Fair play**: the first time any cheat is on (god mode, infinite ammo / adrenaline / grenades,
+  one hit kill, super speed above 1x) the session is marked `casual("cheats")`; the developer level
+  list marks it `casual("debug")`. Loading a save marks it with `save_loaded`, so unlocks right after
+  a load aren't Ranked: the SDK patch reports `XamContentCreate` calls
+  (`KernelState::set_content_opened_callback`), and an existing saved game opened with
+  OPEN_EXISTING (flags `0x13`, what Continue does) counts as a load. Checkpoint saves create the
+  content (`0x12`) and don't.
+- **Toasts**: while the launcher asks for it ("quiet"), ReXGlue's own unlock toast is off (SDK
+  patch: `KernelState::set_show_achievement_toasts`), so players see one toast, not two.
+- **Now playing**: the chapter, from the level file being loaded ("Chapter 13: The Final Piece").
+
+Tested with a stand-in for the launcher (a named-pipe server that records every message): hello
+with id and version, the 31-entry list, earlier unlocks, live unlocks
+(`--debug_unlock_achievement=<id>` unlocks one through the game's own path, for testing with a
+throwaway `--user_data_root`), `casual` for cheats and the level list, `save_loaded` on Continue
+and the "now playing" line. `--log_achievements=true` logs all of it.
 
 ## Cheats
 
@@ -757,8 +807,10 @@ the command syntax: `tap a`, `hold lb+rb 500`, `stick l 0 1 2000`, `key space`, 
   live `swap_post_effect` changes in `graphics/graphics_system.cpp` (FXAA in the F2 panel); and
   `rex::input::TouchpadClickCount()` (`include/rex/input/touchpad.h`, counted in
   `input/sdl/sdl_input_driver.cpp`), so a PlayStation controller's touchpad can open the F2 panel;
-  and `InputSystem::SetGuestStateFilter` (`input/input_system.cpp`), which lets the app rewrite
-  the controller state the game reads (controller weapon wheel, toggle sprint).
+  `InputSystem::SetGuestStateFilter` (`input/input_system.cpp`), which lets the app rewrite
+  the controller state the game reads (controller weapon wheel, toggle sprint); and, for Recomp
+  Achievements, `KernelState::set_show_achievement_toasts` (`system/kernel_state.cpp`) and
+  `KernelState::set_content_opened_callback`, called from `kernel/xam/xam_content.cpp`.
 - **GPU plugin settings** (`resolution_scale`, `anisotropic_override`, `vsync`, ...) live in
   `rexgpu-xenos.dll`, which registers them only when it loads, after `OnPreSetup`. Setting them
   there is silently rejected; hand them over through the environment (`REX_<NAME>`, applied when

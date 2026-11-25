@@ -51,6 +51,43 @@ index 00000000..5ff7faf3
 +uint32_t TouchpadClickCount();
 +
 +}  // namespace rex::input
+diff --git a/include/rex/system/kernel_state.h b/include/rex/system/kernel_state.h
+index 9b9cf9eb..359847b9 100644
+--- a/include/rex/system/kernel_state.h
++++ b/include/rex/system/kernel_state.h
+@@ -333,6 +333,22 @@ class KernelState {
+   AchievementManager& achievements() { return achievement_manager_; }
+   const AchievementManager& achievements() const { return achievement_manager_; }
+ 
++  // [Jurassic: The Hunted Recompiled] Whether unlocks show the runtime's own toast; off while a
++  // launcher (RecompLauncher) shows its own.
++  void set_show_achievement_toasts(bool show) { show_achievement_toasts_.store(show); }
++  // [Jurassic: The Hunted Recompiled] Told when the game created or opened content (XamContentCreate
++  // succeeded): content_type (XContentType, 1 = saved game), disposition (1 created, 2 opened) and
++  // the create flags (& 0xF: 1 new, 2 always, 3 existing, 4 open-always, 5 truncate). Called on
++  // the thread that ran it. Set it before the game starts.
++  using ContentOpenedCallback =
++      std::function<void(uint32_t content_type, uint32_t disposition, uint32_t flags)>;
++  void set_content_opened_callback(ContentOpenedCallback callback) {
++    content_opened_callback_ = std::move(callback);
++  }
++  void NotifyContentOpened(uint32_t content_type, uint32_t disposition, uint32_t flags) {
++    if (content_opened_callback_) content_opened_callback_(content_type, disposition, flags);
++  }
++
+   using AchievementUnlockCallback = std::function<void(const AchievementInfo&)>;
+   AchievementListenerHandle RegisterAchievementUnlockCallback(AchievementUnlockCallback cb);
+ 
+@@ -396,6 +412,9 @@ class KernelState {
+   std::condition_variable_any dispatch_cond_;
+   std::list<std::function<void()>> dispatch_queue_;
+ 
++  std::atomic<bool> show_achievement_toasts_{true};
++  ContentOpenedCallback content_opened_callback_;
++
+   friend class XObject;
+ };
+ 
 diff --git a/include/rex/ui/imgui_dialog.h b/include/rex/ui/imgui_dialog.h
 index a7ab6b30..7e9cff9f 100644
 --- a/include/rex/ui/imgui_dialog.h
@@ -267,6 +304,38 @@ index 57f65c4e..692ca3bc 100644
    auto& controller = controllers_.at(*idx);
  
    uint16_t xbuttons = controller.state.gamepad.buttons;
+diff --git a/src/kernel/xam/xam_content.cpp b/src/kernel/xam/xam_content.cpp
+index 86c4353b..d6b765f6 100644
+--- a/src/kernel/xam/xam_content.cpp
++++ b/src/kernel/xam/xam_content.cpp
+@@ -215,6 +215,12 @@ u32 xeXamContentCreate(u32 user_index, mapped_string root_name, mapped_void cont
+       *license_mask_ptr = content_license;
+     }
+ 
++    if (result == X_ERROR_SUCCESS) {  // [Jurassic: The Hunted Recompiled] save-load tracking
++      REX_KERNEL_STATE()->NotifyContentOpened(
++          static_cast<uint32_t>(static_cast<XContentType>(content_data.content_type)),
++          static_cast<uint32_t>(disposition), flags);
++    }
++
+     if (disposition_ptr) {
+       *disposition_ptr = static_cast<uint32_t>(disposition);
+     }
+diff --git a/src/system/kernel_state.cpp b/src/system/kernel_state.cpp
+index 697399cd..c0f15f74 100644
+--- a/src/system/kernel_state.cpp
++++ b/src/system/kernel_state.cpp
+@@ -265,7 +265,9 @@ AchievementListenerHandle KernelState::RegisterAchievementUnlockCallback(
+ }
+ 
+ void KernelState::UnlockAchievement(uint32_t id) {
+-  (void)achievement_manager_.UnlockAchievement(id, AchievementNotification::kShow);
++  (void)achievement_manager_.UnlockAchievement(
++      id, show_achievement_toasts_.load() ? AchievementNotification::kShow
++                                          : AchievementNotification::kSuppress);
+ }
+ 
+ bool KernelState::IsAchievementUnlocked(uint32_t id) const {
 diff --git a/src/ui/d3d12/d3d12_presenter.cpp b/src/ui/d3d12/d3d12_presenter.cpp
 index 306118ee..c27ea5e6 100644
 --- a/src/ui/d3d12/d3d12_presenter.cpp

@@ -113,12 +113,19 @@ registers = ["r3", "r4"]
 [[midasm_hook]]
 address = 0x8213E3E8
 name = "JthHdrParams"
-registers = ["f3"]
+registers = ["r3", "f3"]
 
 [[midasm_hook]]
 address = 0x8213E468
 name = "JthHdrParams"
-registers = ["f3"]
+registers = ["r3", "f3"]
+
+# The auto-exposure update stores the frame's exposure (renderer +332) at 0x8214E8C8 from f0.
+# JthExposure (src/graphics_settings.cpp) scales it by the exposure setting.
+[[midasm_hook]]
+address = 0x8214E8C8
+name = "JthExposure"
+registers = ["f0"]
 
 # ActorProperties_SPBase's apply-damage method (sub_82368F98, r3 = the victim's ActorProperties:
 # +8 health, +192 its actor; r4 = damage info, +92 source: a bullet (type 16, shooter at +212) or

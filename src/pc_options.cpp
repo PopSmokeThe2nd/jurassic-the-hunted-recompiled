@@ -54,6 +54,7 @@ REXCVAR_DECLARE(std::string, antialiasing);
 REXCVAR_DECLARE(int32_t, framerate);  // defined in framerate.cpp
 REXCVAR_DECLARE(bool, show_fps);
 REXCVAR_DECLARE(double, hdr_max_brightening);  // defined in graphics_settings.cpp
+REXCVAR_DECLARE(double, exposure);             // defined in graphics_settings.cpp
 REXCVAR_DECLARE(bool, weapon_wheel);            // defined in weapon_wheel.cpp
 REXCVAR_DECLARE(bool, toggle_sprint);           // defined in pad_filter.cpp
 REXCVAR_DECLARE(bool, hide_hud);                // defined in hide_hud.cpp
@@ -302,23 +303,23 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
       ImGui::TextDisabled("3D scene rendered at %s. Internal resolution is set in the launcher;",
                           jth::gfx::InternalResolutionText().c_str());
       ImGui::TextDisabled("above your display's, it also smooths edges (supersampling).");
-      // HDR auto-exposure limit (see graphics_settings.cpp): 0 = each level's own value.
-      float hdr = float(REXCVAR_GET(hdr_max_brightening));
-      ImGui::TextUnformatted("Auto-exposure brightening limit");
+      // Exposure: scales the game's HDR exposure each frame (graphics_settings.cpp, JthExposure).
+      float exposure = float(REXCVAR_GET(exposure));
+      ImGui::TextUnformatted("Exposure (picture brightness)");
       ImGui::SetNextItemWidth(slider_w);
-      if (ImGui::SliderFloat("##hdr", &hdr, 0.0f, 4.0f, hdr <= 0.0f ? "Off (level's own)" : "%.1fx")) {
+      if (ImGui::SliderFloat("##exposure", &exposure, 0.5f, 3.0f, "%.2fx")) {
         char buf[32];
-        std::snprintf(buf, sizeof(buf), "%.2f", hdr < 0.05f ? 0.0f : hdr);
-        rex::cvar::SetFlagByName("hdr_max_brightening", buf);
+        std::snprintf(buf, sizeof(buf), "%.2f", exposure);
+        rex::cvar::SetFlagByName("exposure", buf);
         dirty_ = true;
       }
       SaveWhenEditEnds();
       ImGui::SameLine();
-      if (ImGui::Button("Default##hdr")) {
-        rex::cvar::SetFlagByName("hdr_max_brightening", "2.0");
+      if (ImGui::Button("Default##exposure")) {
+        rex::cvar::SetFlagByName("exposure", "1.0");
         Save();
       }
-      ImGui::TextDisabled("Lower = darker bright scenes. Fixes The Lost Castaways' white glare.");
+      ImGui::TextDisabled("1x = as each level sets it. Higher = brighter, lower = darker.");
 
       ImGui::Spacing();
       ImGui::Separator();
@@ -370,11 +371,11 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
   // Writes everything the panel controls (the launcher reads the same keys).
   void Save() {
     using jth::settings::Quote;
-    char sens[32], sharp[32], hdr[32], speed[32];
+    char sens[32], sharp[32], exposure[32], speed[32];
     std::snprintf(speed, sizeof(speed), "%.2f", REXCVAR_GET(cheat_super_speed));
     std::snprintf(sens, sizeof(sens), "%.3f", REXCVAR_GET(mouse_sensitivity));
     std::snprintf(sharp, sizeof(sharp), "%.2f", REXCVAR_GET(upscaler_sharpness));
-    std::snprintf(hdr, sizeof(hdr), "%.2f", REXCVAR_GET(hdr_max_brightening));
+    std::snprintf(exposure, sizeof(exposure), "%.2f", REXCVAR_GET(exposure));
     auto flag = [](bool b) { return std::string(b ? "true" : "false"); };
     dirty_ = false;
     if (jth::settings::UpsertTopLevel(
@@ -393,7 +394,7 @@ class PcOptionsDialog final : public rex::ui::ImGuiDialog {
              {"fullscreen_exclusive", rex::cvar::GetFlagByName("fullscreen_exclusive")},
              {"window_width", rex::cvar::GetFlagByName("window_width")},
              {"window_height", rex::cvar::GetFlagByName("window_height")},
-             {"hdr_max_brightening", hdr},
+             {"exposure", exposure},
              {"weapon_wheel", flag(REXCVAR_GET(weapon_wheel))},
              {"cheat_god_mode", flag(REXCVAR_GET(cheat_god_mode))},
              {"cheat_infinite_ammo", flag(REXCVAR_GET(cheat_infinite_ammo))},

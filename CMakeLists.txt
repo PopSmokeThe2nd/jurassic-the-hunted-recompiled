@@ -26,6 +26,7 @@ set(JURASSICHUNTED_SOURCES
     src/pad_filter.cpp
     src/pc_input.cpp
     src/pc_options.cpp
+    src/recomp_achievements.cpp
     src/settings_file.cpp
     src/test_input.cpp
     src/weapon_art.cpp
@@ -41,6 +42,12 @@ else()
 endif()
 
 rexglue_setup_target(jurassichunted GPU_PLUGINS xenos)
+
+# Recomp Achievements (RecompLauncher): third_party/rl-achievements, unmodified. C99; builds
+# rl_achievements with its rcheevos and cJSON.
+enable_language(C)
+add_subdirectory(third_party/rl-achievements/sdk EXCLUDE_FROM_ALL)
+target_link_libraries(jurassichunted PRIVATE rl_achievements)
 
 if(WIN32)
     target_link_libraries(jurassichunted PRIVATE user32)  # GetAsyncKeyState (src/pc_input.cpp)

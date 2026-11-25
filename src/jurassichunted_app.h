@@ -21,6 +21,7 @@
 #include "pad_filter.h"
 #include "pc_input.h"
 #include "pc_options.h"
+#include "recomp_achievements.h"
 #include "test_input.h"
 #include "weapon_wheel.h"
 
@@ -96,6 +97,7 @@ class JurassicHuntedApp : public rex::ReXApp {
     // PlayStation button icons, if chosen (built from the installed textures before the game runs).
     jth::prompts::Setup(game_root_);
     jth::files::SetupDevOptions();  // dev_level_list
+    jth::ach::Install();            // Recomp Achievements: save-load tracking
   }
 
   // GPU emulation is a runtime-loaded plugin in ReXGlue and is off unless requested.

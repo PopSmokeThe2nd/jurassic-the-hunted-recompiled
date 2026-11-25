@@ -1,6 +1,7 @@
 #include "game_files.h"
 
 #include "crash_log.h"
+#include "recomp_achievements.h"
 
 #include <algorithm>
 #include <cctype>
@@ -134,8 +135,11 @@ void JthOpenFile(PPCRegister& r3, PPCRegister& r4) {
   if (!r4.u32) return;
   const char* s = reinterpret_cast<const char*>(Guest(r4.u32));
   // A level's main file (maps\<level>\<level>.cew): note it for the log and crash reports.
-  if (const size_t n = strnlen(s, 260); n > 4 && _strnicmp(s + n - 4, ".cew", 4) == 0)
-    jth::crash::SetCurrentMap(Normalize(std::string(s, n)));
+  if (const size_t n = strnlen(s, 260); n > 4 && _strnicmp(s + n - 4, ".cew", 4) == 0) {
+    const std::string map = Normalize(std::string(s, n));
+    jth::crash::SetCurrentMap(map);
+    jth::ach::OnMapLoaded(map);  // RecompLauncher's "now playing"
+  }
   if (!Active()) return;
   const std::string key = Normalize(std::string(s, strnlen(s, 260)));
   if (REXCVAR_GET(log_game_files)) REXLOG_INFO("game file: {}", key);

@@ -159,8 +159,14 @@
       "defaults": { "weapon_fov_fixed": "true" }
     },
     {
-      "id": "exposure", "label": "Brightening limit", "group": "Display", "advanced": true,
-      "help": "How far the game's auto-exposure may brighten dark scenes. 2x fixes the white glare in The Lost Castaways.",
+      "id": "brightness", "label": "Exposure", "group": "Display",
+      "help": "Picture brightness. 1 is as each level sets it; higher is brighter, lower is darker.",
+      "slider": { "key": "exposure", "min": 0.5, "max": 3, "step": 0.05, "format": "%.2f" },
+      "defaults": { "exposure": "1.00" }
+    },
+    {
+      "id": "exposure", "label": "Glare limit", "group": "Display", "advanced": true,
+      "help": "The most the game's auto-exposure may brighten a level. 2x stops the white glare in The Lost Castaways; for overall brightness, use Exposure.",
       "choices": [
         { "label": "1.5x", "set": { "hdr_max_brightening": "1.50" } },
         { "label": "2x", "set": { "hdr_max_brightening": "2.00" } },
