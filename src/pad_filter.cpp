@@ -31,8 +31,13 @@ constexpr uint16_t kSprint = rex::input::X_INPUT_GAMEPAD_LEFT_THUMB;
 
 constexpr int64_t kWheelHoldNs = 220'000'000;  // Y held longer than this opens the wheel (as Q)
 constexpr int64_t kTapPulseNs = 100'000'000;   // a tap is replayed as Y held this long
-constexpr int64_t kStillNs = 300'000'000;      // toggle sprint ends after standing still this long
-constexpr int64_t kOffCourseNs = 150'000'000;  // ... or after this long not going forward
+// Toggle sprint ends once the stick has been near the center, or off the forward direction, this
+// long. Kept short: with the button held the game keeps sprinting straight ahead even with the
+// stick centered (measured: a 0.3 s grace meant 0.3 s more at sprint speed after letting go), so
+// this is only enough to ride out a frame or two of a stick springing back.
+constexpr int64_t kStillNs = 40'000'000;
+constexpr int64_t kOffCourseNs = 60'000'000;
+constexpr int64_t kStartMovingNs = 1'000'000'000;  // pressed before moving: time to get going
 constexpr int64_t kSprintStartNs = 500'000'000;  // ... or once stamina hasn't drained this long
 constexpr float kMovingStick = 0.3f;           // left stick past this counts as moving
 constexpr float kForward = 0.55f;              // forward share of the stick that counts as forward
@@ -66,6 +71,7 @@ struct Pad {
   bool latched = false;
   bool hold_sprint = false;  // the press that ended a latched sprint: hidden until released
   int64_t latched_ns = 0;
+  int64_t moving_since = 0;  // when the player started moving after the press (0: not yet)
   int64_t still_since = 0;
   int64_t off_course_since = 0;
   float last_stamina = -1.0f;
@@ -183,7 +189,7 @@ void Filter(uint32_t user, X_INPUT_STATE* state) {
       } else {
         p.latched = true;
         p.latched_ns = now;
-        p.still_since = p.off_course_since = 0;
+        p.moving_since = p.still_since = p.off_course_since = 0;
         Log("sprint on");
       }
     }
@@ -197,12 +203,21 @@ void Filter(uint32_t user, X_INPUT_STATE* state) {
         Log("action (fire, aim, reload, crouch, melee, grenade, adrenaline): sprint off");
       } else if (m < kMovingStick) {
         p.off_course_since = 0;
-        if (!p.still_since) p.still_since = now;
-        if (now - p.still_since >= kStillNs) {
-          p.latched = false;
-          Log("stopped moving: sprint off");
+        if (!p.moving_since) {
+          // Pressed before moving: wait a moment for the stick / W.
+          if (now - p.latched_ns >= kStartMovingNs) {
+            p.latched = false;
+            Log("didn't start moving: sprint off");
+          }
+        } else {
+          if (!p.still_since) p.still_since = now;
+          if (now - p.still_since >= kStillNs) {
+            p.latched = false;
+            Log("stopped moving: sprint off");
+          }
         }
       } else {
+        if (!p.moving_since) p.moving_since = now;
         p.still_since = 0;
         // Forward means within ~55 degrees of straight ahead (W+A / W+D still count).
         if (stick_y < kForward * m) {
@@ -215,8 +230,8 @@ void Filter(uint32_t user, X_INPUT_STATE* state) {
           p.off_course_since = 0;
         }
       }
-      if (p.latched && p.last_stamina >= 0.0f && now - p.latched_ns >= kSprintStartNs &&
-          now - p.stamina_drained_ns >= kSprintStartNs) {
+      if (p.latched && p.moving_since && p.last_stamina >= 0.0f &&
+          now - p.moving_since >= kSprintStartNs && now - p.stamina_drained_ns >= kSprintStartNs) {
         p.latched = false;
         Log("the game's sprint ended (stamina not draining): sprint off");
       }

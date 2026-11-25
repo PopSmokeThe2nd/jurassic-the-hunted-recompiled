@@ -473,7 +473,10 @@ held, so `src/pad_filter.cpp` keeps the button held in the state the game reads 
 `InputSystem::SetGuestStateFilter`), and lets go of it when a player holding it would:
 
 - sprint is pressed again;
-- you stop (stick near the center for 0.3 s) or stop going forward (strafing, backing up);
+- you stop or stop going forward (strafing, backing up), after just 40 / 60 ms (a frame or two):
+  with the button held, the game keeps sprinting straight ahead even with the stick centered, so
+  any longer wait means more sprinting after you let go (1.0.3's 0.3 s grace kept the player
+  running at sprint speed). Pressed before moving, it waits up to 1 s for you to get going;
 - you fire, aim, reload, crouch, melee, throw a grenade or use adrenaline. The game doesn't fire
   while sprinting, so in 1.0.3, firing during a toggled sprint did nothing until the sprint ended a
   few seconds later;

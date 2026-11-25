@@ -107,14 +107,14 @@ void ApplyCheats(uint32_t controller) {
     g_sprint_stamina.store(ok ? g.f32(props + 16) : -1.0f, std::memory_order_relaxed);
   }
 
-  if (REXCVAR_GET(log_player_pos)) {  // Actor +0x50/+0x54/+0x58, four times a second
+  if (REXCVAR_GET(log_player_pos)) {  // Actor +0x50/+0x54/+0x58, ten times a second
     static auto last_pos = std::chrono::steady_clock::time_point{};
     const auto now = std::chrono::steady_clock::now();
-    if (now - last_pos >= std::chrono::milliseconds(250)) {
+    if (now - last_pos >= std::chrono::milliseconds(100)) {
       last_pos = now;
-      REXLOG_INFO("Player position: {:.2f} {:.2f} {:.2f} (sprint stamina {:.2f})",
+      REXLOG_INFO("Player position: {:.2f} {:.2f} {:.2f} (sprint stamina {:.2f}, c432 {:.2f})",
                   g.f32(actor + 0x50), g.f32(actor + 0x54), g.f32(actor + 0x58),
-                  g_sprint_stamina.load(std::memory_order_relaxed));
+                  g_sprint_stamina.load(std::memory_order_relaxed), g.f32(controller + 432));
     }
   }
   if (REXCVAR_GET(log_ammo)) {
